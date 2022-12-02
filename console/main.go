@@ -75,7 +75,7 @@ func main() {
 					fmt.Scanln(&Password)
 
 					client := &http.Client{}
-					url := "http://localhost:5000/api/ride/passenger?username=" + Username + "&password=" + Password
+					url := "http://localhost:6000/api/drive/login/passenger?username=" + Username + "&password=" + Password
 					if req, err := http.NewRequest("POST", url, nil); err == nil {
 						if res, err := client.Do(req); err == nil {
 							defer res.Body.Close()
@@ -108,7 +108,7 @@ func main() {
 					fmt.Scanln(&Password)
 
 					client := &http.Client{}
-					url := "http://localhost:6000/api/ride/driver?username=" + Username + "&password=" + Password
+					url := "http://localhost:6000/api/drive/login/driver?username=" + Username + "&password=" + Password
 					if req, err := http.NewRequest("POST", url, nil); err == nil {
 						if res, err := client.Do(req); err == nil {
 							defer res.Body.Close()
@@ -191,7 +191,7 @@ func main() {
 						fmt.Scanln(&EmailAddress)
 
 						newAccount := Passenger{999, Username, Password, FirstName, LastName, MobileNo, EmailAddress}
-						url := "http://localhost:5000/api/ride/passenger/999"
+						url := "http://localhost:5000/api/drive/create/passenger"
 						postBody, _ := json.Marshal(newAccount)
 						resBody := bytes.NewBuffer(postBody)
 						client := &http.Client{}
@@ -247,7 +247,7 @@ func main() {
 						fmt.Scanln(&CarLicenseNo)
 
 						newAccount := Driver{999, Username, Password, FirstName, LastName, MobileNo, EmailAddress, IdNo, CarLicenseNo}
-						url := "http://localhost:6000/api/ride/driver/999"
+						url := "http://localhost:5000/api/drive/create/driver"
 						postBody, _ := json.Marshal(newAccount)
 						resBody := bytes.NewBuffer(postBody)
 						client := &http.Client{}
@@ -466,7 +466,7 @@ drvloop:
 }
 
 func editPsg(psg *Passenger) {
-	url := "http://localhost:5000/api/ride/passenger/" + strconv.Itoa(psg.UserID)
+	url := "http://localhost:6001/api/drive/edit/passenger/" + strconv.Itoa(psg.UserID)
 	postBody, _ := json.Marshal(*psg)
 	resBody := bytes.NewBuffer(postBody)
 	client := &http.Client{}
@@ -496,7 +496,7 @@ func editPsg(psg *Passenger) {
 }
 
 func editDrv(drv *Driver) {
-	url := "http://localhost:6000/api/ride/driver/" + strconv.Itoa(drv.UserID)
+	url := "http://localhost:6001/api/drive/edit/driver/" + strconv.Itoa(drv.UserID)
 	postBody, _ := json.Marshal(*drv)
 	resBody := bytes.NewBuffer(postBody)
 	client := &http.Client{}
