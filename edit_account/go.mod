@@ -1,4 +1,4 @@
-module passenger
+module eti_assignment1/edit_account
 
 go 1.19
 

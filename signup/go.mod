@@ -1,4 +1,4 @@
-module driver
+module eti_assignment1/signup
 
 go 1.19
 
