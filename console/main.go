@@ -75,30 +75,46 @@ func main() {
 					fmt.Scanln(&Password)
 
 					client := &http.Client{}
-					url := "http://localhost:6000/api/drive/login/passenger?username=" + Username + "&password=" + Password
-					if req, err := http.NewRequest("POST", url, nil); err == nil {
+					url := "http://localhost:8082/get/JWT"
+					if req, err := http.NewRequest("GET", url, nil); err == nil {
 						if res, err := client.Do(req); err == nil {
 							defer res.Body.Close()
-							if res.StatusCode == 404 {
-								fmt.Printf("Error - user not found or incorrect password! \n")
+							if res.StatusCode == 409 {
+								fmt.Printf("Error in retrieving JWT token... \n")
 							} else if res.StatusCode == 202 {
-								fmt.Printf("Logging in... \n\n")
-								body, err := ioutil.ReadAll(res.Body)
-								var p Passenger
-								if err != nil {
-									panic(err)
-								} else {
-									err := json.Unmarshal(body, &p)
-									if err != nil {
-										panic(err)
+
+								body, _ := ioutil.ReadAll(res.Body)
+								t := string(body)
+
+								url = "http://localhost:6000/api/drive/login/passenger?username=" + Username + "&password=" + Password
+								if req, err := http.NewRequest("GET", url, nil); err == nil {
+									req.Header.Set("Token", t)
+									if res, err := client.Do(req); err == nil {
+										defer res.Body.Close()
+										if res.StatusCode == 404 {
+											fmt.Printf("Error - user not found or incorrect password! \n")
+										} else if res.StatusCode == 202 {
+											fmt.Printf("Logging in... \n\n")
+											body, err := ioutil.ReadAll(res.Body)
+											var p Passenger
+											if err != nil {
+												panic(err)
+											} else {
+												err := json.Unmarshal(body, &p)
+												if err != nil {
+													panic(err)
+												}
+												currentPassenger = p
+												PassengerFunctions(&currentPassenger)
+												break signInLoop
+											}
+										}
 									}
-									currentPassenger = p
-									PassengerFunctions(&currentPassenger)
-									break signInLoop
 								}
 							}
 						}
 					}
+
 				case "2":
 					// Sign in as a driver
 					fmt.Println("\n=================")
@@ -108,26 +124,41 @@ func main() {
 					fmt.Scanln(&Password)
 
 					client := &http.Client{}
-					url := "http://localhost:6000/api/drive/login/driver?username=" + Username + "&password=" + Password
-					if req, err := http.NewRequest("POST", url, nil); err == nil {
+					url := "http://localhost:8082/get/JWT"
+					if req, err := http.NewRequest("GET", url, nil); err == nil {
 						if res, err := client.Do(req); err == nil {
 							defer res.Body.Close()
-							if res.StatusCode == 404 {
-								fmt.Printf("Error - user not found or incorrect password! \n\n")
+							if res.StatusCode == 409 {
+								fmt.Printf("Error in retrieving JWT token... \n")
 							} else if res.StatusCode == 202 {
-								fmt.Printf("Logging in... \n\n")
-								body, err := ioutil.ReadAll(res.Body)
-								var d Driver
-								if err != nil {
-									panic(err)
-								} else {
-									err := json.Unmarshal(body, &d)
-									if err != nil {
-										panic(err)
+
+								body, _ := ioutil.ReadAll(res.Body)
+								t := string(body)
+
+								url = "http://localhost:6000/api/drive/login/driver?username=" + Username + "&password=" + Password
+								if req, err := http.NewRequest("GET", url, nil); err == nil {
+									req.Header.Set("Token", t)
+									if res, err := client.Do(req); err == nil {
+										defer res.Body.Close()
+										if res.StatusCode == 404 {
+											fmt.Printf("Error - user not found or incorrect password! \n\n")
+										} else if res.StatusCode == 202 {
+											fmt.Printf("Logging in... \n\n")
+											body, err := ioutil.ReadAll(res.Body)
+											var d Driver
+											if err != nil {
+												panic(err)
+											} else {
+												err := json.Unmarshal(body, &d)
+												if err != nil {
+													panic(err)
+												}
+												currentDriver = d
+												DriverFunctions(&currentDriver)
+												break signInLoop
+											}
+										}
 									}
-									currentDriver = d
-									DriverFunctions(&currentDriver)
-									break signInLoop
 								}
 							}
 						}
