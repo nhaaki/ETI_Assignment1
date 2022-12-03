@@ -5,12 +5,9 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 
-	"github.com/dgrijalva/jwt-go"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 )
@@ -44,13 +41,17 @@ type Driver struct {
 
 func main() {
 	router := mux.NewRouter()
-	router.Handle("/api/drive/login/passenger", isAuthorized(plogin))
-	router.Handle("/api/drive/login/driver", isAuthorized(dlogin))
+	router.HandleFunc("/api/drive/login/passenger", plogin)
+	router.HandleFunc("/api/drive/login/driver", dlogin)
 	fmt.Println("Listening at port 6000")
 	log.Fatal(http.ListenAndServe(":6000", router))
 }
 
+// Login function for PASSENGER users
 func plogin(w http.ResponseWriter, r *http.Request) {
+	if r.Header["Token"] != nil {
+		fmt.Println(r.Header["Token"])
+	}
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 	if err != nil {
 		panic(err.Error())
@@ -76,6 +77,7 @@ func plogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Login function for DRIVER users
 func dlogin(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 	if err != nil {
@@ -101,52 +103,4 @@ func dlogin(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, string(res))
 	}
 
-}
-
-func isAuthorized(endpoint func(http.ResponseWriter, *http.Request)) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header["Token"] != nil {
-
-			token, err := jwt.Parse(r.Header["Token"][0], func(token *jwt.Token) (interface{}, error) {
-				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf(("Invalid Signing Method"))
-				}
-				aud := "billing.jwtgo.io"
-				checkAudience := token.Claims.(jwt.MapClaims).VerifyAudience(aud, false)
-				if !checkAudience {
-					return nil, fmt.Errorf(("invalid aud"))
-				}
-				// verify iss claim
-				iss := "jwtgo.io"
-				checkIss := token.Claims.(jwt.MapClaims).VerifyIssuer(iss, false)
-				if !checkIss {
-					return nil, fmt.Errorf(("invalid iss"))
-				}
-
-				xmlFile, err := os.Open("../key.xml")
-				if err != nil {
-					fmt.Println(err)
-				}
-
-				defer xmlFile.Close()
-				byteValue, _ := ioutil.ReadAll(xmlFile)
-				var key Key
-				xml.Unmarshal(byteValue, &key)
-
-				var mySigningKey = []byte(key.Value)
-
-				return mySigningKey, nil
-			})
-			if err != nil {
-				fmt.Fprintf(w, err.Error())
-			}
-
-			if token.Valid {
-				endpoint(w, r)
-			}
-
-		} else {
-			fmt.Fprintf(w, "No Authorization Token provided")
-		}
-	})
 }

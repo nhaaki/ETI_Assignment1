@@ -38,8 +38,12 @@ type Passenger struct {
 func main() {
 	var currentPassenger Passenger
 	var currentDriver Driver
+	var currentToken string
 
 	for {
+		// for testing purposes
+		fmt.Println(currentPassenger)
+		fmt.Println(currentToken)
 		var choice string
 
 		fmt.Println("\n=======================")
@@ -75,41 +79,41 @@ func main() {
 					fmt.Scanln(&Password)
 
 					client := &http.Client{}
-					url := "http://localhost:8082/get/JWT"
+
+					url := "http://localhost:6000/api/drive/login/passenger?username=" + Username + "&password=" + Password
 					if req, err := http.NewRequest("GET", url, nil); err == nil {
+						//req.Header.Set("Token", t)
 						if res, err := client.Do(req); err == nil {
 							defer res.Body.Close()
-							if res.StatusCode == 409 {
-								fmt.Printf("Error in retrieving JWT token... \n")
+							if res.StatusCode == 404 {
+								fmt.Printf("Error - user not found or incorrect password! \n")
 							} else if res.StatusCode == 202 {
-
-								body, _ := ioutil.ReadAll(res.Body)
-								t := string(body)
-
-								url = "http://localhost:6000/api/drive/login/passenger?username=" + Username + "&password=" + Password
+								url = "http://localhost:8082/get/JWT"
 								if req, err := http.NewRequest("GET", url, nil); err == nil {
-									req.Header.Set("Token", t)
 									if res, err := client.Do(req); err == nil {
 										defer res.Body.Close()
-										if res.StatusCode == 404 {
-											fmt.Printf("Error - user not found or incorrect password! \n")
+										if res.StatusCode == 409 {
+											fmt.Printf("Error in retrieving JWT token... \n")
 										} else if res.StatusCode == 202 {
-											fmt.Printf("Logging in... \n\n")
-											body, err := ioutil.ReadAll(res.Body)
-											var p Passenger
-											if err != nil {
-												panic(err)
-											} else {
-												err := json.Unmarshal(body, &p)
-												if err != nil {
-													panic(err)
-												}
-												currentPassenger = p
-												PassengerFunctions(&currentPassenger)
-												break signInLoop
-											}
+											body, _ := ioutil.ReadAll(res.Body)
+											currentToken = string(body)
 										}
 									}
+								}
+
+								fmt.Printf("Logging in... \n\n")
+								body, err := ioutil.ReadAll(res.Body)
+								var p Passenger
+								if err != nil {
+									panic(err)
+								} else {
+									err := json.Unmarshal(body, &p)
+									if err != nil {
+										panic(err)
+									}
+									currentPassenger = p
+									PassengerFunctions(&currentPassenger, &currentToken)
+									break signInLoop
 								}
 							}
 						}
@@ -124,45 +128,45 @@ func main() {
 					fmt.Scanln(&Password)
 
 					client := &http.Client{}
-					url := "http://localhost:8082/get/JWT"
+					url := "http://localhost:6000/api/drive/login/driver?username=" + Username + "&password=" + Password
 					if req, err := http.NewRequest("GET", url, nil); err == nil {
 						if res, err := client.Do(req); err == nil {
 							defer res.Body.Close()
-							if res.StatusCode == 409 {
-								fmt.Printf("Error in retrieving JWT token... \n")
+							if res.StatusCode == 404 {
+								fmt.Printf("Error - user not found or incorrect password! \n\n")
 							} else if res.StatusCode == 202 {
 
-								body, _ := ioutil.ReadAll(res.Body)
-								t := string(body)
-
-								url = "http://localhost:6000/api/drive/login/driver?username=" + Username + "&password=" + Password
+								url = "http://localhost:8082/get/JWT"
 								if req, err := http.NewRequest("GET", url, nil); err == nil {
-									req.Header.Set("Token", t)
 									if res, err := client.Do(req); err == nil {
 										defer res.Body.Close()
-										if res.StatusCode == 404 {
-											fmt.Printf("Error - user not found or incorrect password! \n\n")
+										if res.StatusCode == 409 {
+											fmt.Printf("Error in retrieving JWT token... \n")
 										} else if res.StatusCode == 202 {
-											fmt.Printf("Logging in... \n\n")
-											body, err := ioutil.ReadAll(res.Body)
-											var d Driver
-											if err != nil {
-												panic(err)
-											} else {
-												err := json.Unmarshal(body, &d)
-												if err != nil {
-													panic(err)
-												}
-												currentDriver = d
-												DriverFunctions(&currentDriver)
-												break signInLoop
-											}
+											body, _ := ioutil.ReadAll(res.Body)
+											currentToken = string(body)
 										}
 									}
+								}
+
+								fmt.Printf("Logging in... \n\n")
+								body, err := ioutil.ReadAll(res.Body)
+								var d Driver
+								if err != nil {
+									panic(err)
+								} else {
+									err := json.Unmarshal(body, &d)
+									if err != nil {
+										panic(err)
+									}
+									currentDriver = d
+									DriverFunctions(&currentDriver, &currentToken)
+									break signInLoop
 								}
 							}
 						}
 					}
+
 				case "3":
 					break signInLoop
 				default:
@@ -316,7 +320,7 @@ func main() {
 	}
 }
 
-func PassengerFunctions(curp *Passenger) {
+func PassengerFunctions(curp *Passenger, currentToken *string) {
 	var choice string
 
 psgloop:
@@ -325,7 +329,7 @@ psgloop:
 		fmt.Println("|| Passenger Functions ||")
 		fmt.Println("=======================")
 		fmt.Printf("Hello, %s %s! \n", curp.FirstName, curp.LastName)
-		fmt.Println("=======================\n")
+		fmt.Println("=======================")
 		fmt.Println("1. Book a trip")
 		fmt.Println("2. Retrieve all trips")
 		fmt.Println("3. Edit account information")
@@ -362,7 +366,7 @@ psgloop:
 					curp.Username = Username
 					curp.Password = Password
 
-					editPsg(curp)
+					editPsg(curp, *currentToken)
 				case "2":
 					fmt.Print("Enter new first name: ")
 					fmt.Scanln(&FirstName)
@@ -372,21 +376,21 @@ psgloop:
 					curp.FirstName = FirstName
 					curp.LastName = LastName
 
-					editPsg(curp)
+					editPsg(curp, *currentToken)
 				case "3":
 					fmt.Print("Enter new mobile number: ")
 					fmt.Scanln(&MobileNo)
 
 					curp.MobileNo = MobileNo
 
-					editPsg(curp)
+					editPsg(curp, *currentToken)
 				case "4":
 					fmt.Print("Enter new email address: ")
 					fmt.Scanln(&EmailAddress)
 
 					curp.EmailAddress = EmailAddress
 
-					editPsg(curp)
+					editPsg(curp, *currentToken)
 				case "5":
 					break editDetailsLoop
 				default:
@@ -396,12 +400,14 @@ psgloop:
 			}
 
 		case "4":
+			*curp = Passenger{}
+			*currentToken = ""
 			break psgloop
 		}
 	}
 }
 
-func DriverFunctions(curd *Driver) {
+func DriverFunctions(curd *Driver, currentToken *string) {
 
 	var choice string
 
@@ -413,8 +419,8 @@ drvloop:
 		fmt.Printf("Hello, %s %s! \n", curd.FirstName, curd.LastName)
 		fmt.Println("=======================")
 		fmt.Println("No assigned rides")
-		fmt.Println("=======================\n")
-		fmt.Println("1. Edit account information")
+		fmt.Println("=======================")
+		fmt.Println("\n1. Edit account information")
 		fmt.Println("2. Exit to main menu")
 		fmt.Print("Enter an option:")
 		fmt.Scanln(&choice)
@@ -450,7 +456,7 @@ drvloop:
 					curd.Username = Username
 					curd.Password = Password
 
-					editDrv(curd)
+					editDrv(curd, *currentToken)
 				case "2":
 					fmt.Print("Enter new first name: ")
 					fmt.Scanln(&FirstName)
@@ -460,28 +466,28 @@ drvloop:
 					curd.FirstName = FirstName
 					curd.LastName = LastName
 
-					editDrv(curd)
+					editDrv(curd, *currentToken)
 				case "3":
 					fmt.Print("Enter new mobile number: ")
 					fmt.Scanln(&MobileNo)
 
 					curd.MobileNo = MobileNo
 
-					editDrv(curd)
+					editDrv(curd, *currentToken)
 				case "4":
 					fmt.Print("Enter new email address: ")
 					fmt.Scanln(&EmailAddress)
 
 					curd.EmailAddress = EmailAddress
 
-					editDrv(curd)
+					editDrv(curd, *currentToken)
 				case "5":
 					fmt.Print("Enter new car license number: ")
 					fmt.Scanln(&CarLicenseNo)
 
 					curd.CarLicenseNo = CarLicenseNo
 
-					editDrv(curd)
+					editDrv(curd, *currentToken)
 				case "6":
 					break editDetailsLoop
 				default:
@@ -491,17 +497,20 @@ drvloop:
 			}
 
 		case "2":
+			*curd = Driver{}
+			*currentToken = ""
 			break drvloop
 		}
 	}
 }
 
-func editPsg(psg *Passenger) {
+func editPsg(psg *Passenger, currentToken string) {
 	url := "http://localhost:6001/api/drive/edit/passenger/" + strconv.Itoa(psg.UserID)
 	postBody, _ := json.Marshal(*psg)
 	resBody := bytes.NewBuffer(postBody)
 	client := &http.Client{}
 	if req, err := http.NewRequest("PUT", url, resBody); err == nil {
+		req.Header.Set("Token", currentToken)
 		if res, err := client.Do(req); err == nil {
 			defer res.Body.Close()
 			if res.StatusCode == 202 {
@@ -526,12 +535,13 @@ func editPsg(psg *Passenger) {
 	}
 }
 
-func editDrv(drv *Driver) {
+func editDrv(drv *Driver, currentToken string) {
 	url := "http://localhost:6001/api/drive/edit/driver/" + strconv.Itoa(drv.UserID)
 	postBody, _ := json.Marshal(*drv)
 	resBody := bytes.NewBuffer(postBody)
 	client := &http.Client{}
 	if req, err := http.NewRequest("PUT", url, resBody); err == nil {
+		req.Header.Set("Token", currentToken)
 		if res, err := client.Do(req); err == nil {
 			defer res.Body.Close()
 			if res.StatusCode == 202 {
