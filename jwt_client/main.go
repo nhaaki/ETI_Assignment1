@@ -39,7 +39,7 @@ func GetJWT() (string, error) {
 	claims["client"] = "Krissanawat"
 	claims["aud"] = "billing.jwtgo.io"
 	claims["iss"] = "jwtgo.io"
-	claims["exp"] = time.Now().Add(time.Minute * 1).Unix()
+	claims["exp"] = time.Now().Add(time.Hour * 24).Unix()
 
 	tokenString, err := token.SignedString(mySigningKey)
 
