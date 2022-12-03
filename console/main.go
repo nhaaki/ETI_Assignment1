@@ -41,9 +41,7 @@ func main() {
 	var currentToken string
 
 	for {
-		// for testing purposes
-		fmt.Println(currentPassenger)
-		fmt.Println(currentToken)
+
 		var choice string
 
 		fmt.Println("\n=======================")
@@ -80,9 +78,15 @@ func main() {
 
 					client := &http.Client{}
 
-					url := "http://localhost:6000/api/drive/login/passenger?username=" + Username + "&password=" + Password
-					if req, err := http.NewRequest("GET", url, nil); err == nil {
-						//req.Header.Set("Token", t)
+					url := "http://localhost:6000/api/drive/login/passenger"
+					loginPayload := map[string]string{
+						"Username": Username,
+						"Password": Password,
+					}
+					postBody, _ := json.Marshal(loginPayload)
+					resBody := bytes.NewBuffer(postBody)
+
+					if req, err := http.NewRequest("GET", url, resBody); err == nil {
 						if res, err := client.Do(req); err == nil {
 							defer res.Body.Close()
 							if res.StatusCode == 404 {
@@ -128,8 +132,14 @@ func main() {
 					fmt.Scanln(&Password)
 
 					client := &http.Client{}
-					url := "http://localhost:6000/api/drive/login/driver?username=" + Username + "&password=" + Password
-					if req, err := http.NewRequest("GET", url, nil); err == nil {
+					url := "http://localhost:6000/api/drive/login/driver"
+					loginPayload := map[string]string{
+						"Username": Username,
+						"Password": Password,
+					}
+					postBody, _ := json.Marshal(loginPayload)
+					resBody := bytes.NewBuffer(postBody)
+					if req, err := http.NewRequest("GET", url, resBody); err == nil {
 						if res, err := client.Do(req); err == nil {
 							defer res.Body.Close()
 							if res.StatusCode == 404 {

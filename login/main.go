@@ -58,18 +58,19 @@ func plogin(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 
-	Username := r.URL.Query().Get("username")
-	Password := r.URL.Query().Get("password")
+	var userValues map[string]string
+	d := json.NewDecoder(r.Body)
+	d.Decode(&userValues)
 
 	var count int
-	db.QueryRow("Select count(*) from Passengers where Username=? and Password=?", Username, Password).Scan(&count)
+	db.QueryRow("Select count(*) from Passengers where Username=? and Password=?", userValues["Username"], userValues["Password"]).Scan(&count)
 	if count != 1 {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "No user found or wrong password.")
 	} else {
 		w.WriteHeader(http.StatusAccepted)
 		var p Passenger
-		db.QueryRow("select * from Passengers where Username=? and Password=?", Username, Password).Scan(&p.UserID,
+		db.QueryRow("select * from Passengers where Username=? and Password=?", userValues["Username"], userValues["Password"]).Scan(&p.UserID,
 			&p.Username, &p.Password, &p.FirstName, &p.LastName, &p.MobileNo, &p.EmailAddress)
 
 		res, _ := json.MarshalIndent(p, "", "\t")
@@ -85,18 +86,19 @@ func dlogin(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 
-	Username := r.URL.Query().Get("username")
-	Password := r.URL.Query().Get("password")
+	var userValues map[string]string
+	d := json.NewDecoder(r.Body)
+	d.Decode(&userValues)
 
 	var count int
-	db.QueryRow("Select count(*) from Drivers where Username=? and Password=?", Username, Password).Scan(&count)
+	db.QueryRow("Select count(*) from Drivers where Username=? and Password=?", userValues["Username"], userValues["Password"]).Scan(&count)
 	if count != 1 {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "No user found or wrong password.")
 	} else {
 		w.WriteHeader(http.StatusAccepted)
 		var d Driver
-		db.QueryRow("select * from Drivers where Username=? and Password=?", Username, Password).Scan(&d.UserID,
+		db.QueryRow("select * from Drivers where Username=? and Password=?", userValues["Username"], userValues["Password"]).Scan(&d.UserID,
 			&d.Username, &d.Password, &d.FirstName, &d.LastName, &d.MobileNo, &d.EmailAddress, &d.IdNo, &d.CarLicenseNo)
 
 		res, _ := json.MarshalIndent(d, "", "\t")
