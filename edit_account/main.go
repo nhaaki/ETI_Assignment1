@@ -45,8 +45,6 @@ type Driver struct {
 
 func main() {
 	router := mux.NewRouter()
-	// router.HandleFunc("/api/drive/edit/passenger/{user id}", pEdit).Methods("PUT")
-	// router.HandleFunc("/api/drive/edit/driver/{user id}", dEdit).Methods("PUT")
 	router.Handle("/api/drive/edit/passenger/{user id}", isAuthorized(pEdit)).Methods("PUT")
 	router.Handle("/api/drive/edit/driver/{user id}", isAuthorized(pEdit)).Methods("PUT")
 	fmt.Println("Listening at port 6001")
