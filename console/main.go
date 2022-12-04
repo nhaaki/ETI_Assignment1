@@ -41,9 +41,7 @@ func main() {
 	var currentToken string
 
 	for {
-		// for testing purposes
-		fmt.Println(currentPassenger)
-		fmt.Println(currentToken)
+
 		var choice string
 
 		fmt.Println("\n=======================")
@@ -80,9 +78,15 @@ func main() {
 
 					client := &http.Client{}
 
-					url := "http://localhost:6000/api/drive/login/passenger?username=" + Username + "&password=" + Password
-					if req, err := http.NewRequest("GET", url, nil); err == nil {
-						//req.Header.Set("Token", t)
+					url := "http://localhost:6000/api/drive/login/passenger"
+					loginPayload := map[string]string{
+						"Username": Username,
+						"Password": Password,
+					}
+					postBody, _ := json.Marshal(loginPayload)
+					resBody := bytes.NewBuffer(postBody)
+
+					if req, err := http.NewRequest("GET", url, resBody); err == nil {
 						if res, err := client.Do(req); err == nil {
 							defer res.Body.Close()
 							if res.StatusCode == 404 {
@@ -128,8 +132,14 @@ func main() {
 					fmt.Scanln(&Password)
 
 					client := &http.Client{}
-					url := "http://localhost:6000/api/drive/login/driver?username=" + Username + "&password=" + Password
-					if req, err := http.NewRequest("GET", url, nil); err == nil {
+					url := "http://localhost:6000/api/drive/login/driver"
+					loginPayload := map[string]string{
+						"Username": Username,
+						"Password": Password,
+					}
+					postBody, _ := json.Marshal(loginPayload)
+					resBody := bytes.NewBuffer(postBody)
+					if req, err := http.NewRequest("GET", url, resBody); err == nil {
 						if res, err := client.Do(req); err == nil {
 							defer res.Body.Close()
 							if res.StatusCode == 404 {
@@ -338,6 +348,37 @@ psgloop:
 		fmt.Scanln(&choice)
 
 		switch choice {
+		case "1":
+			var pcPickup string
+			var pcDropoff string
+
+			fmt.Println("\n=================")
+			fmt.Print("Enter postal code of pick-up location: ")
+			fmt.Scanln(&pcPickup)
+			fmt.Print("Enter postal code of drop-off location: ")
+			fmt.Scanln(&pcDropoff)
+
+			client := &http.Client{}
+			url := "http://localhost:6002/api/drive/passenger/book/" + strconv.Itoa(curp.UserID)
+			loginPayload := map[string]string{
+				"pcPickup":  pcPickup,
+				"pcDropoff": pcDropoff,
+			}
+			postBody, _ := json.Marshal(loginPayload)
+			resBody := bytes.NewBuffer(postBody)
+
+			if req, err := http.NewRequest("POST", url, resBody); err == nil {
+				req.Header.Set("Token", *currentToken)
+				if res, err := client.Do(req); err == nil {
+					defer res.Body.Close()
+					if res.StatusCode == 404 {
+						fmt.Printf("Error... \n\n")
+					} else if res.StatusCode == 202 {
+
+					}
+				}
+			}
+
 		case "3":
 			var Username string
 			var Password string
@@ -497,6 +538,12 @@ drvloop:
 			}
 
 		case "2":
+			db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+			if err != nil {
+				panic(err.Error())
+			}
+			defer db.Close()
+			db.Exec("DELETE FROM LiveRides where driverUID=?", curd.UserID)
 			*curd = Driver{}
 			*currentToken = ""
 			break drvloop
