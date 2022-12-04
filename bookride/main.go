@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"encoding/xml"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 
 	"github.com/dgrijalva/jwt-go"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 )
 
@@ -32,12 +34,15 @@ type Passenger struct {
 
 func main() {
 	router := mux.NewRouter()
-	router.Handle("/api/drive/passenger/book/{user id}", isAuthorized(bookRide)).Methods("POST")
+	router.Handle("/api/drive/passenger/assigndriver/{user id}", isAuthorized(assignDriver)).Methods("POST")
+	router.Handle("/api/drive/driver/ridefunctions/{user id}", isAuthorized(rideFunctions)).Methods("POST")
+
 	fmt.Println("Listening at port 6002")
 	log.Fatal(http.ListenAndServe(":6002", router))
+
 }
 
-func bookRide(w http.ResponseWriter, r *http.Request) {
+func assignDriver(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	userID, _ := strconv.Atoi(params["user id"])
 
@@ -56,7 +61,7 @@ func bookRide(w http.ResponseWriter, r *http.Request) {
 
 	if count != 0 {
 		_, err := db.Exec("UPDATE LiveRides SET passengerUID=?, pcPickUp=?, pcDropOff=?, status=? where status=? limit 1", userID,
-			pcValues["pcPickUp"], pcValues["pcDropOff"], "Assigned")
+			pcValues["pcPickup"], pcValues["pcDropoff"], "Assigned", "Available")
 		if err != nil {
 			panic(err.Error())
 		}
@@ -67,6 +72,58 @@ func bookRide(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Error - No riders available...")
 	}
 
+}
+
+func rideFunctions(w http.ResponseWriter, r *http.Request) {
+	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+	params := mux.Vars(r)
+	userID, _ := strconv.Atoi(params["user id"])
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	router := mux.NewRouter()
+	router.Handle("/api/drive/startride/{user id}", isAuthorized(func(h http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprintln(w, "Ride started!")
+
+		_, err := db.Exec("UPDATE LiveRides SET status=? where passengerUID=?", "Ongoing", userID)
+		if err != nil {
+			panic(err.Error())
+		}
+		cancel()
+	})).Methods("POST")
+
+	router.Handle("/api/drive/endride/{user id}", isAuthorized(func(h http.ResponseWriter, r *http.Request) {
+		db.Exec("UPDATE LiveRides SET passengerUID=?,pcPickUp=?,pcDropOff=?, status=? where passengerUID=?",
+			nil, nil, nil, "Available", userID)
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprintln(w, "Ride ended!")
+		cancel()
+	})).Methods("POST")
+
+	srv := &http.Server{
+		Addr:    "0.0.0.0:6003",
+		Handler: router,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	<-ctx.Done()
+
+	err2 := srv.Shutdown(context.Background())
+	if err2 != nil {
+		log.Println(err2)
+	}
+
+	log.Println("done.")
 }
 
 func isAuthorized(endpoint func(http.ResponseWriter, *http.Request)) http.Handler {
