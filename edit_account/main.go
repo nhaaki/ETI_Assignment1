@@ -59,7 +59,6 @@ func pEdit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := mux.Vars(r)
-	w.Header().Set("Content-type", "application/json")
 
 	var t Passenger
 	x, _ := strconv.Atoi(params["user id"])

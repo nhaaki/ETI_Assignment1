@@ -100,6 +100,8 @@ func dlogin(w http.ResponseWriter, r *http.Request) {
 		var d Driver
 		db.QueryRow("select * from Drivers where Username=? and Password=?", userValues["Username"], userValues["Password"]).Scan(&d.UserID,
 			&d.Username, &d.Password, &d.FirstName, &d.LastName, &d.MobileNo, &d.EmailAddress, &d.IdNo, &d.CarLicenseNo)
+		db.Exec("INSERT INTO LiveRides (driverUID, status) values (?,?)",
+			d.UserID, "Available")
 
 		res, _ := json.MarshalIndent(d, "", "\t")
 		fmt.Fprintf(w, string(res))
