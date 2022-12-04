@@ -98,6 +98,7 @@ func main() {
 										defer res.Body.Close()
 										if res.StatusCode == 409 {
 											fmt.Printf("Error in retrieving JWT token... \n")
+											continue
 										} else if res.StatusCode == 202 {
 											body, _ := ioutil.ReadAll(res.Body)
 											currentToken = string(body)
@@ -152,6 +153,7 @@ func main() {
 										defer res.Body.Close()
 										if res.StatusCode == 409 {
 											fmt.Printf("Error in retrieving JWT token... \n")
+											continue
 										} else if res.StatusCode == 202 {
 											body, _ := ioutil.ReadAll(res.Body)
 											currentToken = string(body)
@@ -359,7 +361,7 @@ psgloop:
 			fmt.Scanln(&pcDropoff)
 
 			client := &http.Client{}
-			url := "http://localhost:6002/api/drive/passenger/book/" + strconv.Itoa(curp.UserID)
+			url := "http://localhost:6002/api/drive/passenger/assigndriver/" + strconv.Itoa(curp.UserID)
 			loginPayload := map[string]string{
 				"pcPickup":  pcPickup,
 				"pcDropoff": pcDropoff,
@@ -372,9 +374,38 @@ psgloop:
 				if res, err := client.Do(req); err == nil {
 					defer res.Body.Close()
 					if res.StatusCode == 404 {
-						fmt.Printf("Error... \n\n")
+						body, _ := ioutil.ReadAll(res.Body)
+						fmt.Println(string(body))
 					} else if res.StatusCode == 202 {
+						body, _ := ioutil.ReadAll(res.Body)
+						fmt.Println(string(body))
+						fmt.Println("Waiting for driver to start ride...")
 
+						db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+						if err != nil {
+							panic(err.Error())
+						}
+						defer db.Close()
+						var count int
+						db.QueryRow("Select count(*) from LiveRides where passengerUID=?", curp.UserID).Scan(&count)
+						for count != 0 {
+							url := "http://localhost:6002/api/drive/driver/ridefunctions/" + strconv.Itoa(curp.UserID)
+							if req, err := http.NewRequest("POST", url, nil); err == nil {
+								req.Header.Set("Token", *currentToken)
+								if res, err := client.Do(req); err == nil {
+									defer res.Body.Close()
+									if res.StatusCode == 202 {
+										body, _ := ioutil.ReadAll(res.Body)
+										fmt.Println(string(body))
+									} else if res.StatusCode == 409 {
+										body, _ := ioutil.ReadAll(res.Body)
+										fmt.Println(string(body))
+									}
+								}
+							}
+
+							db.QueryRow("Select count(*) from LiveRides where passengerUID=?", curp.UserID).Scan(&count)
+						}
 					}
 				}
 			}
@@ -459,10 +490,21 @@ drvloop:
 		fmt.Println("=======================")
 		fmt.Printf("Hello, %s %s! \n", curd.FirstName, curd.LastName)
 		fmt.Println("=======================")
-		fmt.Println("No assigned rides")
+
+		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+		if err != nil {
+			panic(err.Error())
+		}
+		defer db.Close()
+
+		var status string
+		db.QueryRow("Select status from LiveRides where driverUID=?", curd.UserID).Scan(&status)
+		printDriverStatus(status, curd)
+
 		fmt.Println("=======================")
 		fmt.Println("\n1. Edit account information")
-		fmt.Println("2. Exit to main menu")
+		fmt.Println("2. Refresh page")
+		fmt.Println("3. Exit to main menu")
 		fmt.Print("Enter an option:")
 		fmt.Scanln(&choice)
 
@@ -536,17 +578,53 @@ drvloop:
 					continue
 				}
 			}
-
 		case "2":
+			continue
+
+		case "a":
+			client := &http.Client{}
+			url := "http://localhost:6003/api/drive/startride/" + strconv.Itoa(curd.UserID)
+			if req, err := http.NewRequest("POST", url, nil); err == nil {
+				req.Header.Set("Token", *currentToken)
+				_, err := client.Do(req)
+				if err != nil {
+					panic(err.Error())
+				}
+			}
+
+		case "b":
+			client := &http.Client{}
+			url := "http://localhost:6003/api/drive/endride/" + strconv.Itoa(curd.UserID)
+			if req, err := http.NewRequest("POST", url, nil); err == nil {
+				req.Header.Set("Token", *currentToken)
+				if res, err := client.Do(req); err == nil {
+					defer res.Body.Close()
+					if res.StatusCode == 202 {
+						body, _ := ioutil.ReadAll(res.Body)
+						fmt.Println(string(body))
+					} else if res.StatusCode == 409 {
+						body, _ := ioutil.ReadAll(res.Body)
+						fmt.Println(string(body))
+					}
+				}
+			}
+		case "3":
 			db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 			if err != nil {
 				panic(err.Error())
 			}
 			defer db.Close()
-			db.Exec("DELETE FROM LiveRides where driverUID=?", curd.UserID)
-			*curd = Driver{}
-			*currentToken = ""
-			break drvloop
+			var status string
+			db.QueryRow("Select status from LiveRides where driverUID=?", curd.UserID).Scan(&status)
+			if status == "Ongoing" {
+				fmt.Println("You can't log out while driving a passenger!")
+				continue
+			} else {
+				db.Exec("DELETE FROM LiveRides where driverUID=?", curd.UserID)
+				*curd = Driver{}
+				*currentToken = ""
+				break drvloop
+			}
 		}
 	}
 }
@@ -610,5 +688,46 @@ func editDrv(drv *Driver, currentToken string) {
 				*drv = d
 			}
 		}
+	}
+}
+
+func printDriverStatus(status string, curd *Driver) {
+	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+
+	switch status {
+	case "Assigned":
+		var passengerUID string
+		var pcPickUp string
+		var pcDropOff string
+		db.QueryRow("Select passengerUID, pcPickUp, pcDropOff from LiveRides where driverUID=? and status=?", curd.UserID, "Assigned").Scan(&passengerUID, &pcPickUp, &pcDropOff)
+		var pFName string
+		var pLName string
+		db.QueryRow("Select FirstName, LastName from Passengers where UserID=?", passengerUID).Scan(&pFName, &pLName)
+
+		fmt.Printf("Assigned to %s %s\n", pFName, pLName)
+		fmt.Printf("Pick-up postal code: %s\n", pcPickUp)
+		fmt.Printf("Drop-off postal code: %s\n", pcDropOff)
+		fmt.Println("a. Start ride")
+
+	case "Available":
+		fmt.Println("No assigned rides")
+
+	case "Ongoing":
+		var passengerUID string
+		var pcPickUp string
+		var pcDropOff string
+		db.QueryRow("Select passengerUID, pcPickUp, pcDropOff from LiveRides where driverUID=? and status=?", curd.UserID, "Ongoing").Scan(&passengerUID, &pcPickUp, &pcDropOff)
+		var pFName string
+		var pLName string
+		db.QueryRow("Select FirstName, LastName from Passengers where UserID=?", passengerUID).Scan(&pFName, &pLName)
+
+		fmt.Printf("Assigned to %s %s\n", pFName, pLName)
+		fmt.Printf("Pick-up postal code: %s\n", pcPickUp)
+		fmt.Printf("Drop-off postal code: %s\n", pcDropOff)
+		fmt.Println("b. Stop ride")
 	}
 }
