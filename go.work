@@ -6,4 +6,5 @@ use (
 	./login
 	./edit_account
 	./jwt_client
+	./bookride
 )
