@@ -7,4 +7,5 @@ use (
 	./edit_account
 	./jwt_client
 	./bookride
+	./ridehistory
 )
