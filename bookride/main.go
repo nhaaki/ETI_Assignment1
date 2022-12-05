@@ -65,8 +65,13 @@ func assignDriver(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			panic(err.Error())
 		}
+		var dFirstName string
+		var dLastName string
+		var dCarLicenseNo string
+		db.QueryRow("Select d.FirstName, d.LastName, d.CarLicenseNo from Drivers d INNER JOIN LiveRides l ON d.UserID = l.driverUID where l.passengerUID=?", userID).Scan(&dFirstName, &dLastName, &dCarLicenseNo)
 		w.WriteHeader(http.StatusAccepted)
-		fmt.Fprintln(w, "Rider found!")
+		fmt.Fprintln(w, "Name: "+dFirstName+" "+dLastName)
+		fmt.Fprintln(w, "Car license number: "+dCarLicenseNo)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintln(w, "Error - No riders available...")
@@ -88,7 +93,13 @@ func rideFunctions(w http.ResponseWriter, r *http.Request) {
 	router := mux.NewRouter()
 	router.Handle("/api/drive/startride/{user id}", isAuthorized(func(h http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
-		fmt.Fprintln(w, "Ride started!")
+		fmt.Fprintln(w, "=======================\nRide started!")
+		fmt.Fprintln(w, "   -           __")
+		fmt.Fprintln(w, " --          ~( @\\   \\")
+		fmt.Fprintln(w, "---   _________]_[__/_>________")
+		fmt.Fprintln(w, "     /  ____ \\ <>     |  ____  \\")
+		fmt.Fprintln(w, "    =\\_/ __ \\_\\_______|_/ __ \\__D")
+		fmt.Fprintln(w, "________(__)_____________(__)____")
 
 		_, err := db.Exec("UPDATE LiveRides SET status=? where passengerUID=?", "Ongoing", userID)
 		if err != nil {
@@ -101,7 +112,7 @@ func rideFunctions(w http.ResponseWriter, r *http.Request) {
 		db.Exec("UPDATE LiveRides SET passengerUID=?,pcPickUp=?,pcDropOff=?, status=? where passengerUID=?",
 			nil, nil, nil, "Available", userID)
 		w.WriteHeader(http.StatusAccepted)
-		fmt.Fprintln(w, "Ride ended!")
+		fmt.Fprintln(w, "Ride ended!\n=======================")
 		cancel()
 	})).Methods("POST")
 

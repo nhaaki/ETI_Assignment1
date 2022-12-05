@@ -380,6 +380,11 @@ psgloop:
 						body, _ := ioutil.ReadAll(res.Body)
 						fmt.Println(string(body))
 						fmt.Println("Waiting for driver to start ride...")
+						fmt.Println("+====+")
+						fmt.Println("|(::)|")
+						fmt.Println("| )( |")
+						fmt.Println("|(..)|")
+						fmt.Println("+====+")
 
 						db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 						if err != nil {
@@ -499,7 +504,7 @@ drvloop:
 
 		var status string
 		db.QueryRow("Select status from LiveRides where driverUID=?", curd.UserID).Scan(&status)
-		printDriverStatus(status, curd)
+		currState := printDriverStatus(status, curd)
 
 		fmt.Println("=======================")
 		fmt.Println("\n1. Edit account information")
@@ -582,32 +587,41 @@ drvloop:
 			continue
 
 		case "a":
-			client := &http.Client{}
-			url := "http://localhost:6003/api/drive/startride/" + strconv.Itoa(curd.UserID)
-			if req, err := http.NewRequest("POST", url, nil); err == nil {
-				req.Header.Set("Token", *currentToken)
-				_, err := client.Do(req)
-				if err != nil {
-					panic(err.Error())
+			if currState != 1 {
+				fmt.Println("Error - Invalid input!")
+			} else {
+				client := &http.Client{}
+				url := "http://localhost:6003/api/drive/startride/" + strconv.Itoa(curd.UserID)
+				if req, err := http.NewRequest("POST", url, nil); err == nil {
+					req.Header.Set("Token", *currentToken)
+					_, err := client.Do(req)
+					if err != nil {
+						panic(err.Error())
+					}
 				}
-			}
 
+			}
 		case "b":
-			client := &http.Client{}
-			url := "http://localhost:6003/api/drive/endride/" + strconv.Itoa(curd.UserID)
-			if req, err := http.NewRequest("POST", url, nil); err == nil {
-				req.Header.Set("Token", *currentToken)
-				if res, err := client.Do(req); err == nil {
-					defer res.Body.Close()
-					if res.StatusCode == 202 {
-						body, _ := ioutil.ReadAll(res.Body)
-						fmt.Println(string(body))
-					} else if res.StatusCode == 409 {
-						body, _ := ioutil.ReadAll(res.Body)
-						fmt.Println(string(body))
+			if currState != 2 {
+				fmt.Println("Error - Invalid input!")
+			} else {
+				client := &http.Client{}
+				url := "http://localhost:6003/api/drive/endride/" + strconv.Itoa(curd.UserID)
+				if req, err := http.NewRequest("POST", url, nil); err == nil {
+					req.Header.Set("Token", *currentToken)
+					if res, err := client.Do(req); err == nil {
+						defer res.Body.Close()
+						if res.StatusCode == 202 {
+							body, _ := ioutil.ReadAll(res.Body)
+							fmt.Println(string(body))
+						} else if res.StatusCode == 409 {
+							body, _ := ioutil.ReadAll(res.Body)
+							fmt.Println(string(body))
+						}
 					}
 				}
 			}
+
 		case "3":
 			db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 			if err != nil {
@@ -625,6 +639,8 @@ drvloop:
 				*currentToken = ""
 				break drvloop
 			}
+		default:
+			fmt.Println("Error - Invalid input!")
 		}
 	}
 }
@@ -691,7 +707,7 @@ func editDrv(drv *Driver, currentToken string) {
 	}
 }
 
-func printDriverStatus(status string, curd *Driver) {
+func printDriverStatus(status string, curd *Driver) (currState int) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 	if err != nil {
 		panic(err.Error())
@@ -712,9 +728,11 @@ func printDriverStatus(status string, curd *Driver) {
 		fmt.Printf("Pick-up postal code: %s\n", pcPickUp)
 		fmt.Printf("Drop-off postal code: %s\n", pcDropOff)
 		fmt.Println("a. Start ride")
+		return 1
 
 	case "Available":
 		fmt.Println("No assigned rides")
+		return 0
 
 	case "Ongoing":
 		var passengerUID string
@@ -729,5 +747,8 @@ func printDriverStatus(status string, curd *Driver) {
 		fmt.Printf("Pick-up postal code: %s\n", pcPickUp)
 		fmt.Printf("Drop-off postal code: %s\n", pcDropOff)
 		fmt.Println("b. Stop ride")
+		return 2
 	}
+
+	return 0
 }
