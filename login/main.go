@@ -49,9 +49,6 @@ func main() {
 
 // Login function for PASSENGER users
 func plogin(w http.ResponseWriter, r *http.Request) {
-	if r.Header["Token"] != nil {
-		fmt.Println(r.Header["Token"])
-	}
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 	if err != nil {
 		panic(err.Error())
