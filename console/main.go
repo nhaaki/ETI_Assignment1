@@ -405,10 +405,12 @@ psgloop:
 									} else if res.StatusCode == 409 {
 										body, _ := ioutil.ReadAll(res.Body)
 										fmt.Println(string(body))
+									} else if res.StatusCode == 200 {
+										body, _ := ioutil.ReadAll(res.Body)
+										fmt.Println(string(body))
 									}
 								}
 							}
-
 							db.QueryRow("Select count(*) from LiveRides where passengerUID=?", curp.UserID).Scan(&count)
 						}
 					}
@@ -614,14 +616,27 @@ drvloop:
 						if res.StatusCode == 202 {
 							body, _ := ioutil.ReadAll(res.Body)
 							fmt.Println(string(body))
-						} else if res.StatusCode == 409 {
+						}
+					}
+				}
+			}
+		case "c":
+			if currState != 1 {
+				fmt.Println("Error - Invalid input!")
+			} else {
+				client := &http.Client{}
+				url := "http://localhost:6003/api/drive/cancelride/" + strconv.Itoa(curd.UserID)
+				if req, err := http.NewRequest("POST", url, nil); err == nil {
+					req.Header.Set("Token", *currentToken)
+					if res, err := client.Do(req); err == nil {
+						defer res.Body.Close()
+						if res.StatusCode == 202 {
 							body, _ := ioutil.ReadAll(res.Body)
 							fmt.Println(string(body))
 						}
 					}
 				}
 			}
-
 		case "3":
 			db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 			if err != nil {
@@ -634,6 +649,19 @@ drvloop:
 				fmt.Println("You can't log out while driving a passenger!")
 				continue
 			} else {
+				client := &http.Client{}
+				url := "http://localhost:6003/api/drive/cancelride/" + strconv.Itoa(curd.UserID)
+				if req, err := http.NewRequest("POST", url, nil); err == nil {
+					req.Header.Set("Token", *currentToken)
+					if res, err := client.Do(req); err == nil {
+						defer res.Body.Close()
+						if res.StatusCode == 202 {
+							body, _ := ioutil.ReadAll(res.Body)
+							fmt.Println(string(body))
+						}
+					}
+				}
+
 				db.Exec("DELETE FROM LiveRides where driverUID=?", curd.UserID)
 				*curd = Driver{}
 				*currentToken = ""
@@ -728,6 +756,7 @@ func printDriverStatus(status string, curd *Driver) (currState int) {
 		fmt.Printf("Pick-up postal code: %s\n", pcPickUp)
 		fmt.Printf("Drop-off postal code: %s\n", pcDropOff)
 		fmt.Println("a. Start ride")
+		fmt.Println("c. Cancel ride")
 		return 1
 
 	case "Available":

@@ -70,6 +70,7 @@ func assignDriver(w http.ResponseWriter, r *http.Request) {
 		var dCarLicenseNo string
 		db.QueryRow("Select d.FirstName, d.LastName, d.CarLicenseNo from Drivers d INNER JOIN LiveRides l ON d.UserID = l.driverUID where l.passengerUID=?", userID).Scan(&dFirstName, &dLastName, &dCarLicenseNo)
 		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprintln(w, "=======================\nRider found!")
 		fmt.Fprintln(w, "Name: "+dFirstName+" "+dLastName)
 		fmt.Fprintln(w, "Car license number: "+dCarLicenseNo)
 	} else {
@@ -86,12 +87,16 @@ func rideFunctions(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 	params := mux.Vars(r)
-	userID, _ := strconv.Atoi(params["user id"])
+	pUID, _ := strconv.Atoi(params["user id"])
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	router := mux.NewRouter()
-	router.Handle("/api/drive/startride/{user id}", isAuthorized(func(h http.ResponseWriter, r *http.Request) {
+	router.Handle("/api/drive/startride/{user id}", isAuthorized(func(h http.ResponseWriter, z *http.Request) {
+
+		params := mux.Vars(z)
+		dUID, _ := strconv.Atoi(params["user id"])
+
 		w.WriteHeader(http.StatusAccepted)
 		fmt.Fprintln(w, "=======================\nRide started!")
 		fmt.Fprintln(w, "   -           __")
@@ -101,18 +106,31 @@ func rideFunctions(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "    =\\_/ __ \\_\\_______|_/ __ \\__D")
 		fmt.Fprintln(w, "________(__)_____________(__)____")
 
-		_, err := db.Exec("UPDATE LiveRides SET status=? where passengerUID=?", "Ongoing", userID)
+		_, err := db.Exec("UPDATE LiveRides SET status=? where passengerUID=? and driverUID=?", "Ongoing", pUID, dUID)
 		if err != nil {
 			panic(err.Error())
 		}
 		cancel()
 	})).Methods("POST")
 
-	router.Handle("/api/drive/endride/{user id}", isAuthorized(func(h http.ResponseWriter, r *http.Request) {
-		db.Exec("UPDATE LiveRides SET passengerUID=?,pcPickUp=?,pcDropOff=?, status=? where passengerUID=?",
-			nil, nil, nil, "Available", userID)
+	router.Handle("/api/drive/endride/{user id}", isAuthorized(func(h http.ResponseWriter, z *http.Request) {
+		params := mux.Vars(z)
+		dUID, _ := strconv.Atoi(params["user id"])
+
+		db.Exec("UPDATE LiveRides SET passengerUID=?,pcPickUp=?,pcDropOff=?, status=? where passengerUID=? and driverUID=?",
+			nil, nil, nil, "Available", pUID, dUID)
 		w.WriteHeader(http.StatusAccepted)
 		fmt.Fprintln(w, "Ride ended!\n=======================")
+		cancel()
+	})).Methods("POST")
+
+	router.Handle("/api/drive/cancelride/{user id}", isAuthorized(func(h http.ResponseWriter, z *http.Request) {
+		params := mux.Vars(z)
+		dUID, _ := strconv.Atoi(params["user id"])
+		db.Exec("UPDATE LiveRides SET passengerUID=?,pcPickUp=?,pcDropOff=?, status=? where driverUID=?",
+			nil, nil, nil, "Available", dUID)
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "Driver cancelled the ride.\n=======================")
 		cancel()
 	})).Methods("POST")
 
