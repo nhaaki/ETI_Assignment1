@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/dgrijalva/jwt-go"
 	_ "github.com/go-sql-driver/mysql"
@@ -30,17 +31,16 @@ func main() {
 
 func setHistory(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
-	defer db.Close()
 	if err != nil {
 		panic(err.Error())
 	}
+	defer db.Close()
 	var ridePayload map[string]string
 	d := json.NewDecoder(r.Body)
 	d.Decode(&ridePayload)
-	fmt.Println(ridePayload)
 
 	_, err2 := db.Exec("INSERT INTO RideHistory (driverUID, passengerUID, pcPickUp, pcDropOff) values (?,?,?,?)",
-		ridePayload["passengerUID"], ridePayload["driverUID"], ridePayload["pcPickup"], ridePayload["pcDropOff"])
+		ridePayload["driverUID"], ridePayload["passengerUID"], ridePayload["pcPickup"], ridePayload["pcDropOff"])
 	if err2 != nil {
 		w.WriteHeader(http.StatusConflict)
 	}
@@ -49,9 +49,57 @@ func setHistory(w http.ResponseWriter, r *http.Request) {
 
 func getHistory(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
-	defer db.Close()
 	if err != nil {
 		panic(err.Error())
+	}
+	defer db.Close()
+
+	params := mux.Vars(r)
+	userID, _ := strconv.Atoi(params["user id"])
+
+	results, err2 := db.Query("select * from RideHistory where passengerUID=? ORDER BY rideDate DESC", userID)
+	if err2 != nil {
+		panic(err2.Error())
+	}
+	allRides := make(map[int]map[string]string)
+	x := 1
+	for results.Next() {
+		var passengerUID string
+		var driverUID int
+		var dFirstName string
+		var dLastName string
+		var CarLicenseNo string
+		var pcPickUp string
+		var pcDropOff string
+		var rideDate string
+		err = results.Scan(&passengerUID, &driverUID, &pcPickUp, &pcDropOff, &rideDate)
+		if err != nil {
+			panic(err.Error())
+		}
+
+		db.QueryRow("Select FirstName, LastName, CarLicenseNo from Drivers where UserID=?", driverUID).Scan(&dFirstName, &dLastName, &CarLicenseNo)
+
+		rideObj := map[string]string{
+			"driverFirstName": dFirstName,
+			"driverLastName":  dLastName,
+			"carLicenseNo":    CarLicenseNo,
+			"pcPickup":        pcPickUp,
+			"pcDropOff":       pcDropOff,
+			"rideDate":        rideDate,
+		}
+		allRides[x] = rideObj
+
+		x++
+	}
+	fmt.Println(len(allRides))
+
+	if len(allRides) < 1 {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "No ride history found...")
+	} else {
+		res, _ := json.MarshalIndent(allRides, "", "\t")
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprintf(w, string(res))
 	}
 }
 

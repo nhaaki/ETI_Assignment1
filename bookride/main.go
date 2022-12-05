@@ -165,8 +165,6 @@ func rideFunctions(w http.ResponseWriter, r *http.Request) {
 	if err2 != nil {
 		log.Println(err2)
 	}
-
-	log.Println("done.")
 }
 
 func isAuthorized(endpoint func(http.ResponseWriter, *http.Request)) http.Handler {

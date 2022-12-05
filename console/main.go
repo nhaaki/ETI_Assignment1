@@ -337,9 +337,9 @@ func PassengerFunctions(curp *Passenger, currentToken *string) {
 
 psgloop:
 	for {
-		fmt.Println("\n=======================")
+		fmt.Println("\n=========================")
 		fmt.Println("|| Passenger Functions ||")
-		fmt.Println("=======================")
+		fmt.Println("=========================")
 		fmt.Printf("Hello, %s %s! \n", curp.FirstName, curp.LastName)
 		fmt.Println("=======================")
 		fmt.Println("1. Book a trip")
@@ -414,6 +414,39 @@ psgloop:
 							}
 							db.QueryRow("Select count(*) from LiveRides where passengerUID=?", curp.UserID).Scan(&count)
 						}
+					}
+				}
+			}
+		case "2":
+			client := &http.Client{}
+			url := "http://localhost:6005/api/drive/passenger/gethistory/" + strconv.Itoa(curp.UserID)
+			if req, err := http.NewRequest("GET", url, nil); err == nil {
+				req.Header.Set("Token", *currentToken)
+				if res, err := client.Do(req); err == nil {
+					defer res.Body.Close()
+					if res.StatusCode == 202 {
+						body, _ := ioutil.ReadAll(res.Body)
+						var allRides map[int]map[string]string
+						err := json.Unmarshal(body, &allRides)
+						if err != nil {
+							panic(err.Error())
+						}
+
+						for index, details := range allRides {
+							fmt.Printf("\n(%v)\n", index)
+							fmt.Println("=================")
+							fmt.Println("Ride Date: " + details["rideDate"])
+							fmt.Println("\nDriver name: " + details["driverFirstName"] + " " + details["driverLastName"])
+							fmt.Println("Driver Car License No. : " + details["carLicenseNo"])
+							fmt.Println("\nPick-up postal code: " + details["pcPickup"])
+							fmt.Println("Drop-off postal code: " + details["pcDropOff"])
+
+							fmt.Println("=================")
+						}
+
+					} else if res.StatusCode == 404 {
+						body, _ := ioutil.ReadAll(res.Body)
+						fmt.Println("\n" + string(body))
 					}
 				}
 			}
