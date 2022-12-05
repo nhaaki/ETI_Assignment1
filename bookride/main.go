@@ -97,7 +97,7 @@ func rideFunctions(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(z)
 		dUID, _ := strconv.Atoi(params["user id"])
 
-		w.WriteHeader(http.StatusAccepted)
+		w.WriteHeader(http.StatusCreated)
 		fmt.Fprintln(w, "=======================\nRide started!")
 		fmt.Fprintln(w, "   -           __")
 		fmt.Fprintln(w, " --          ~( @\\   \\")
@@ -117,10 +117,24 @@ func rideFunctions(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(z)
 		dUID, _ := strconv.Atoi(params["user id"])
 
+		var pcPickUp string
+		var pcDropOff string
+		db.QueryRow("Select pcPickUp, pcDropOff from LiveRides where passengerUID=?", pUID).Scan(&pcPickUp, &pcDropOff)
+
 		db.Exec("UPDATE LiveRides SET passengerUID=?,pcPickUp=?,pcDropOff=?, status=? where passengerUID=? and driverUID=?",
 			nil, nil, nil, "Available", pUID, dUID)
+		histPayload := map[string]string{
+			"passengerUID": strconv.Itoa(pUID),
+			"driverUID":    strconv.Itoa(dUID),
+			"pcPickup":     pcPickUp,
+			"pcDropOff":    pcDropOff,
+		}
+		res, _ := json.MarshalIndent(histPayload, "", "\t")
+		h.WriteHeader(http.StatusAccepted)
+		fmt.Fprintf(h, string(res))
 		w.WriteHeader(http.StatusAccepted)
-		fmt.Fprintln(w, "Ride ended!\n=======================")
+		fmt.Fprintf(w, "Ride ended!\n=======================")
+
 		cancel()
 	})).Methods("POST")
 

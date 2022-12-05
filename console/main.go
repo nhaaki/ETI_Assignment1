@@ -399,12 +399,13 @@ psgloop:
 								req.Header.Set("Token", *currentToken)
 								if res, err := client.Do(req); err == nil {
 									defer res.Body.Close()
-									if res.StatusCode == 202 {
+									if res.StatusCode == 201 {
 										body, _ := ioutil.ReadAll(res.Body)
 										fmt.Println(string(body))
-									} else if res.StatusCode == 409 {
+									} else if res.StatusCode == 202 {
 										body, _ := ioutil.ReadAll(res.Body)
 										fmt.Println(string(body))
+
 									} else if res.StatusCode == 200 {
 										body, _ := ioutil.ReadAll(res.Body)
 										fmt.Println(string(body))
@@ -615,7 +616,18 @@ drvloop:
 						defer res.Body.Close()
 						if res.StatusCode == 202 {
 							body, _ := ioutil.ReadAll(res.Body)
-							fmt.Println(string(body))
+							resBody := bytes.NewBuffer(body)
+							url = "http://localhost:6005/api/drive/addtohistory"
+							if req, err := http.NewRequest("POST", url, resBody); err == nil {
+								req.Header.Set("Token", *currentToken)
+								if res, err := client.Do(req); err == nil {
+									defer res.Body.Close()
+									if res.StatusCode == 409 {
+										body, _ := ioutil.ReadAll(res.Body)
+										fmt.Println(string(body))
+									}
+								}
+							}
 						}
 					}
 				}
