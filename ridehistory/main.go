@@ -91,7 +91,6 @@ func getHistory(w http.ResponseWriter, r *http.Request) {
 
 		x++
 	}
-	fmt.Println(len(allRides))
 
 	if len(allRides) < 1 {
 		w.WriteHeader(http.StatusNotFound)

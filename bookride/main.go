@@ -34,12 +34,101 @@ type Passenger struct {
 
 func main() {
 	router := mux.NewRouter()
+	router.HandleFunc("/api/drive/checkactiveride", checkActiveRide).Methods("GET")
+	router.HandleFunc("/api/drive/getdriverstatus", getDriverStatus).Methods("GET")
+	router.HandleFunc("/api/drive/getridedetails", getRideDetails).Methods("GET")
+	router.Handle("/api/drive/driver/setinactive", isAuthorized(setInactive)).Methods("POST")
 	router.Handle("/api/drive/passenger/assigndriver/{user id}", isAuthorized(assignDriver)).Methods("POST")
 	router.Handle("/api/drive/driver/ridefunctions/{user id}", isAuthorized(rideFunctions)).Methods("POST")
 
 	fmt.Println("Listening at port 6002")
 	log.Fatal(http.ListenAndServe(":6002", router))
+}
 
+func checkActiveRide(w http.ResponseWriter, r *http.Request) {
+	querystringmap := r.URL.Query()
+	if len(querystringmap) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "Error - No UserID input.")
+	} else {
+		userID := r.URL.Query().Get("userid")
+		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+		if err != nil {
+			panic(err.Error())
+		}
+		defer db.Close()
+		var count int
+		db.QueryRow("Select count(*) from LiveRides where passengerUID=?", userID).Scan(&count)
+		fmt.Fprint(w, count)
+	}
+}
+
+func getDriverStatus(w http.ResponseWriter, r *http.Request) {
+	querystringmap := r.URL.Query()
+	if len(querystringmap) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "Error - No UserID input.")
+	} else {
+		userID := r.URL.Query().Get("userid")
+		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+		if err != nil {
+			panic(err.Error())
+		}
+		defer db.Close()
+		var status string
+		db.QueryRow("Select status from LiveRides where driverUID=?", userID).Scan(&status)
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprint(w, status)
+	}
+}
+
+func getRideDetails(w http.ResponseWriter, r *http.Request) {
+	querystringmap := r.URL.Query()
+	if len(querystringmap) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "Error - No UserID input.")
+	} else {
+		userID := r.URL.Query().Get("userid")
+		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+		if err != nil {
+			panic(err.Error())
+		}
+		defer db.Close()
+		var passengerUID string
+		var pcPickUp string
+		var pcDropOff string
+		var pFName string
+		var pLName string
+		db.QueryRow("Select p.FirstName, p.LastName, l.passengerUID, l.pcPickUp, l.pcDropOff from LiveRides l INNER JOIN Passengers p ON l.passengerUID=p.UserID where l.driverUID=?", userID).Scan(&pFName, &pLName, &passengerUID, &pcPickUp, &pcDropOff)
+		ridePayload := map[string]string{
+			"pFirstName": pFName,
+			"pLastName":  pLName,
+			"pUID":       passengerUID,
+			"pcPickUp":   pcPickUp,
+			"pcDropOff":  pcDropOff,
+		}
+		res, _ := json.MarshalIndent(ridePayload, "", "\t")
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprintf(w, string(res))
+	}
+}
+
+func setInactive(w http.ResponseWriter, r *http.Request) {
+	querystringmap := r.URL.Query()
+	if len(querystringmap) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "Error - No UserID input.")
+	} else {
+		userID := r.URL.Query().Get("userid")
+		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+		if err != nil {
+			panic(err.Error())
+		}
+		defer db.Close()
+		db.Exec("DELETE FROM LiveRides where driverUID=?", userID)
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprint(w, "Successfully logged out!")
+	}
 }
 
 func assignDriver(w http.ResponseWriter, r *http.Request) {

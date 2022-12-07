@@ -2,10 +2,8 @@ go 1.19
 
 use (
 	./console
-	./signup
-	./login
-	./edit_account
 	./jwt_client
 	./bookride
 	./ridehistory
+	./account
 )
