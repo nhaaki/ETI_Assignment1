@@ -158,11 +158,18 @@ func isAuthorized(endpoint func(http.ResponseWriter, *http.Request)) http.Handle
 				return mySigningKey, nil
 			})
 			if err != nil {
+				w.WriteHeader(http.StatusUnauthorized)
 				fmt.Fprintf(w, err.Error())
 			}
 
 			if token.Valid {
 				endpoint(w, r)
+			} else {
+				w.WriteHeader(http.StatusUnauthorized)
+				_, err := w.Write([]byte("You're unauthorized due to invalid token"))
+				if err != nil {
+					return
+				}
 			}
 
 		} else {
