@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -78,7 +77,7 @@ func main() {
 
 					client := &http.Client{}
 
-					url := "http://localhost:6000/api/drive/login/passenger"
+					url := "http://localhost:5000/api/drive/login/passenger"
 					loginPayload := map[string]string{
 						"Username": Username,
 						"Password": Password,
@@ -133,7 +132,7 @@ func main() {
 					fmt.Scanln(&Password)
 
 					client := &http.Client{}
-					url := "http://localhost:6000/api/drive/login/driver"
+					url := "http://localhost:5000/api/drive/login/driver"
 					loginPayload := map[string]string{
 						"Username": Username,
 						"Password": Password,
@@ -214,18 +213,19 @@ func main() {
 						fmt.Print("Enter your username: ")
 						fmt.Scanln(&Username)
 
-						var count int
-						db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
-						if err != nil {
-							panic(err.Error())
+						client := &http.Client{}
+						url := "http://localhost:5000/api/drive/checkusername?username=" + Username + "&type=Passenger"
+						if req, err := http.NewRequest("POST", url, nil); err == nil {
+							if res, err := client.Do(req); err == nil {
+								defer res.Body.Close()
+								if res.StatusCode == 404 || res.StatusCode == 409 {
+									body, _ := ioutil.ReadAll(res.Body)
+									fmt.Println(string(body))
+									continue
+								}
+							}
 						}
-						defer db.Close()
 
-						db.QueryRow("Select count(*) from Passengers where Username=?", Username).Scan(&count)
-						if count != 0 {
-							fmt.Println("Username taken. Try another username.")
-							continue
-						}
 						fmt.Print("Enter your password: ")
 						fmt.Scanln(&Password)
 						fmt.Print("Enter your first name: ")
@@ -238,10 +238,10 @@ func main() {
 						fmt.Scanln(&EmailAddress)
 
 						newAccount := Passenger{999, Username, Password, FirstName, LastName, MobileNo, EmailAddress}
-						url := "http://localhost:5000/api/drive/create/passenger"
+						url = "http://localhost:5000/api/drive/create/passenger"
 						postBody, _ := json.Marshal(newAccount)
 						resBody := bytes.NewBuffer(postBody)
-						client := &http.Client{}
+						client = &http.Client{}
 						if req, err := http.NewRequest("POST", url, resBody); err == nil {
 							if res, err := client.Do(req); err == nil {
 								defer res.Body.Close()
@@ -266,18 +266,19 @@ func main() {
 						fmt.Print("Enter your username: ")
 						fmt.Scanln(&Username)
 
-						var count int
-						db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
-						if err != nil {
-							panic(err.Error())
+						client := &http.Client{}
+						url := "http://localhost:5000/api/drive/checkusername?username=" + Username + "&type=Driver"
+						if req, err := http.NewRequest("POST", url, nil); err == nil {
+							if res, err := client.Do(req); err == nil {
+								defer res.Body.Close()
+								if res.StatusCode == 404 || res.StatusCode == 409 {
+									body, _ := ioutil.ReadAll(res.Body)
+									fmt.Println(string(body))
+									continue
+								}
+							}
 						}
-						defer db.Close()
 
-						db.QueryRow("Select count(*) from Drivers where Username=?", Username).Scan(&count)
-						if count != 0 {
-							fmt.Println("Username taken. Try another username.")
-							continue
-						}
 						fmt.Print("Enter your password: ")
 						fmt.Scanln(&Password)
 						fmt.Print("Enter your first name: ")
@@ -294,10 +295,10 @@ func main() {
 						fmt.Scanln(&CarLicenseNo)
 
 						newAccount := Driver{999, Username, Password, FirstName, LastName, MobileNo, EmailAddress, IdNo, CarLicenseNo}
-						url := "http://localhost:5000/api/drive/create/driver"
+						url = "http://localhost:5000/api/drive/create/driver"
 						postBody, _ := json.Marshal(newAccount)
 						resBody := bytes.NewBuffer(postBody)
-						client := &http.Client{}
+						client = &http.Client{}
 						if req, err := http.NewRequest("POST", url, resBody); err == nil {
 							if res, err := client.Do(req); err == nil {
 								defer res.Body.Close()
@@ -386,13 +387,18 @@ psgloop:
 						fmt.Println("|(..)|")
 						fmt.Println("+====+")
 
-						db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
-						if err != nil {
-							panic(err.Error())
-						}
-						defer db.Close()
 						var count int
-						db.QueryRow("Select count(*) from LiveRides where passengerUID=?", curp.UserID).Scan(&count)
+						url := "http://localhost:6002/api/drive/checkactiveride?userid=" + strconv.Itoa(curp.UserID)
+						if req, err := http.NewRequest("GET", url, nil); err == nil {
+							if res, err := client.Do(req); err == nil {
+								body, _ := ioutil.ReadAll(res.Body)
+								err := json.Unmarshal(body, &count)
+								if err != nil {
+									panic(err.Error())
+								}
+							}
+						}
+
 						for count != 0 {
 							url := "http://localhost:6002/api/drive/driver/ridefunctions/" + strconv.Itoa(curp.UserID)
 							if req, err := http.NewRequest("POST", url, nil); err == nil {
@@ -412,7 +418,17 @@ psgloop:
 									}
 								}
 							}
-							db.QueryRow("Select count(*) from LiveRides where passengerUID=?", curp.UserID).Scan(&count)
+
+							url = "http://localhost:6002/api/drive/checkactiveride?userid=" + strconv.Itoa(curp.UserID)
+							if req, err := http.NewRequest("GET", url, nil); err == nil {
+								if res, err := client.Do(req); err == nil {
+									body, _ := ioutil.ReadAll(res.Body)
+									err := json.Unmarshal(body, &count)
+									if err != nil {
+										panic(err.Error())
+									}
+								}
+							}
 						}
 					}
 				}
@@ -532,14 +548,20 @@ drvloop:
 		fmt.Printf("Hello, %s %s! \n", curd.FirstName, curd.LastName)
 		fmt.Println("=======================")
 
-		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
-		if err != nil {
-			panic(err.Error())
-		}
-		defer db.Close()
-
 		var status string
-		db.QueryRow("Select status from LiveRides where driverUID=?", curd.UserID).Scan(&status)
+		client := &http.Client{}
+		url := "http://localhost:6002/api/drive/getdriverstatus?userid=" + strconv.Itoa(curd.UserID)
+		if req, err := http.NewRequest("GET", url, nil); err == nil {
+			if res, err := client.Do(req); err == nil {
+				defer res.Body.Close()
+				if res.StatusCode == 202 {
+					body, _ := ioutil.ReadAll(res.Body)
+					status = string(body)
+				}
+			}
+		}
+		fmt.Println("Status: " + status)
+
 		currState := printDriverStatus(status, curd)
 
 		fmt.Println("=======================")
@@ -683,17 +705,22 @@ drvloop:
 				}
 			}
 		case "3":
-			db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
-			if err != nil {
-				panic(err.Error())
+			client := &http.Client{}
+			url := "http://localhost:6002/api/drive/getdriverstatus" + strconv.Itoa(curd.UserID)
+			if req, err := http.NewRequest("POST", url, nil); err == nil {
+				if res, err := client.Do(req); err == nil {
+					defer res.Body.Close()
+					if res.StatusCode == 202 {
+						body, _ := ioutil.ReadAll(res.Body)
+						status = string(body)
+					}
+				}
 			}
-			defer db.Close()
-			var status string
-			db.QueryRow("Select status from LiveRides where driverUID=?", curd.UserID).Scan(&status)
+
 			if status == "Ongoing" {
 				fmt.Println("You can't log out while driving a passenger!")
 				continue
-			} else {
+			} else if status == "Assigned" {
 				client := &http.Client{}
 				url := "http://localhost:6003/api/drive/cancelride/" + strconv.Itoa(curd.UserID)
 				if req, err := http.NewRequest("POST", url, nil); err == nil {
@@ -706,12 +733,22 @@ drvloop:
 						}
 					}
 				}
-
-				db.Exec("DELETE FROM LiveRides where driverUID=?", curd.UserID)
-				*curd = Driver{}
-				*currentToken = ""
-				break drvloop
 			}
+			url = "http://localhost:6002/api/drive/driver/setinactive?userid=" + strconv.Itoa(curd.UserID)
+			if req, err := http.NewRequest("POST", url, nil); err == nil {
+				req.Header.Set("Token", *currentToken)
+				if res, err := client.Do(req); err == nil {
+					defer res.Body.Close()
+					if res.StatusCode == 202 {
+						body, _ := ioutil.ReadAll(res.Body)
+						fmt.Println(string(body))
+					}
+				}
+			}
+			*curd = Driver{}
+			*currentToken = ""
+			break drvloop
+
 		default:
 			fmt.Println("Error - Invalid input!")
 		}
@@ -719,7 +756,7 @@ drvloop:
 }
 
 func editPsg(psg *Passenger, currentToken string) {
-	url := "http://localhost:6001/api/drive/edit/passenger/" + strconv.Itoa(psg.UserID)
+	url := "http://localhost:5000/api/drive/edit/passenger/" + strconv.Itoa(psg.UserID)
 	postBody, _ := json.Marshal(*psg)
 	resBody := bytes.NewBuffer(postBody)
 	client := &http.Client{}
@@ -732,18 +769,14 @@ func editPsg(psg *Passenger, currentToken string) {
 				fmt.Println(string(body))
 			} else if res.StatusCode == 409 {
 				body, _ := ioutil.ReadAll(res.Body)
-				fmt.Println(string(body))
-
-				// This part resets the values of Passenger object CurrentPassenger back to its original due to error
-				db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+				var unpwPayload map[string]string
+				err := json.Unmarshal(body, &unpwPayload)
 				if err != nil {
 					panic(err.Error())
 				}
-				defer db.Close()
-				var p Passenger
-				db.QueryRow("select * from Passengers where Username=? and Password=?", psg.Username, psg.Password).Scan(&p.UserID,
-					&p.Username, &p.Password, &p.FirstName, &p.LastName, &p.MobileNo, &p.EmailAddress)
-				*psg = p
+				psg.Username = unpwPayload["Username"]
+				psg.Password = unpwPayload["Password"]
+				fmt.Println("Error - Username taken.")
 			}
 		}
 	}
@@ -763,43 +796,46 @@ func editDrv(drv *Driver, currentToken string) {
 				fmt.Println(string(body))
 			} else if res.StatusCode == 409 {
 				body, _ := ioutil.ReadAll(res.Body)
-				fmt.Println(string(body))
-
-				// This part resets the values of Driver object CurrentDriver back to its original due to error
-				db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+				var unpwPayload map[string]string
+				err := json.Unmarshal(body, &unpwPayload)
 				if err != nil {
 					panic(err.Error())
 				}
-				defer db.Close()
-				var d Driver
-				db.QueryRow("select * from Passengers where Username=? and Password=?", drv.Username, drv.Password).Scan(&d.UserID,
-					&d.Username, &d.Password, &d.FirstName, &d.LastName, &d.MobileNo, &d.EmailAddress)
-				*drv = d
+				drv.Username = unpwPayload["Username"]
+				drv.Password = unpwPayload["Password"]
+				fmt.Println("Error - Username taken.")
 			}
 		}
 	}
 }
 
 func printDriverStatus(status string, curd *Driver) (currState int) {
-	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
-	if err != nil {
-		panic(err.Error())
-	}
-	defer db.Close()
 
 	switch status {
 	case "Assigned":
-		var passengerUID string
-		var pcPickUp string
-		var pcDropOff string
-		db.QueryRow("Select passengerUID, pcPickUp, pcDropOff from LiveRides where driverUID=? and status=?", curd.UserID, "Assigned").Scan(&passengerUID, &pcPickUp, &pcDropOff)
-		var pFName string
-		var pLName string
-		db.QueryRow("Select FirstName, LastName from Passengers where UserID=?", passengerUID).Scan(&pFName, &pLName)
 
-		fmt.Printf("Assigned to %s %s\n", pFName, pLName)
-		fmt.Printf("Pick-up postal code: %s\n", pcPickUp)
-		fmt.Printf("Drop-off postal code: %s\n", pcDropOff)
+		var rideDetails map[string]string
+		client := &http.Client{}
+		url := "http://localhost:6002/api/drive/getridedetails?userid=" + strconv.Itoa(curd.UserID)
+		if req, err := http.NewRequest("GET", url, nil); err == nil {
+			if res, err := client.Do(req); err == nil {
+				defer res.Body.Close()
+				if res.StatusCode == 202 {
+					body, _ := ioutil.ReadAll(res.Body)
+					err := json.Unmarshal(body, &rideDetails)
+					if err != nil {
+						panic(err.Error())
+					}
+				} else {
+					body, _ := ioutil.ReadAll(res.Body)
+					fmt.Println(string(body))
+				}
+			}
+		}
+
+		fmt.Printf("Assigned to %s %s\n", rideDetails["pFirstName"], rideDetails["pLastName"])
+		fmt.Printf("Pick-up postal code: %s\n", rideDetails["pcPickUp"])
+		fmt.Printf("Drop-off postal code: %s\n", rideDetails["pcDropOff"])
 		fmt.Println("a. Start ride")
 		fmt.Println("c. Cancel ride")
 		return 1
@@ -809,17 +845,28 @@ func printDriverStatus(status string, curd *Driver) (currState int) {
 		return 0
 
 	case "Ongoing":
-		var passengerUID string
-		var pcPickUp string
-		var pcDropOff string
-		db.QueryRow("Select passengerUID, pcPickUp, pcDropOff from LiveRides where driverUID=? and status=?", curd.UserID, "Ongoing").Scan(&passengerUID, &pcPickUp, &pcDropOff)
-		var pFName string
-		var pLName string
-		db.QueryRow("Select FirstName, LastName from Passengers where UserID=?", passengerUID).Scan(&pFName, &pLName)
+		var rideDetails map[string]string
+		client := &http.Client{}
+		url := "http://localhost:6002/api/drive/getridedetails?userid=" + strconv.Itoa(curd.UserID)
+		if req, err := http.NewRequest("GET", url, nil); err == nil {
+			if res, err := client.Do(req); err == nil {
+				defer res.Body.Close()
+				if res.StatusCode == 202 {
+					body, _ := ioutil.ReadAll(res.Body)
+					err := json.Unmarshal(body, &rideDetails)
+					if err != nil {
+						panic(err.Error())
+					}
+				} else {
+					body, _ := ioutil.ReadAll(res.Body)
+					fmt.Println(string(body))
+				}
+			}
+		}
 
-		fmt.Printf("Assigned to %s %s\n", pFName, pLName)
-		fmt.Printf("Pick-up postal code: %s\n", pcPickUp)
-		fmt.Printf("Drop-off postal code: %s\n", pcDropOff)
+		fmt.Printf("Assigned to %s %s\n", rideDetails["pFirstName"], rideDetails["pLastName"])
+		fmt.Printf("Pick-up postal code: %s\n", rideDetails["pcPickUp"])
+		fmt.Printf("Drop-off postal code: %s\n", rideDetails["pcDropOff"])
 		fmt.Println("b. Stop ride")
 		return 2
 	}
