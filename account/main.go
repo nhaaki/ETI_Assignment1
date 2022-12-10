@@ -50,6 +50,8 @@ func main() {
 	router.HandleFunc("/api/drive/checkusername", checkUsername).Methods("POST")
 	router.HandleFunc("/api/drive/login/passenger", plogin)
 	router.HandleFunc("/api/drive/login/driver", dlogin)
+	router.Handle("/api/drive/get/passenger", isAuthorized(getPDetails)).Methods("GET")
+	router.Handle("/api/drive/get/driver", isAuthorized(getDDetails)).Methods("GET")
 	router.Handle("/api/drive/edit/passenger/{user id}", isAuthorized(pEdit)).Methods("PUT")
 	router.Handle("/api/drive/edit/driver/{user id}", isAuthorized(dEdit)).Methods("PUT")
 	fmt.Println("Listening at port 5000")
@@ -78,13 +80,15 @@ func createPassengerUser(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusConflict)
 			fmt.Fprint(w, "Username taken. Try another username.")
 		} else {
-			w.WriteHeader(http.StatusAccepted)
 			_, err := db.Exec("INSERT INTO Passengers (Username, Password, FirstName, LastName, MobileNo, EmailAddress) values (?,?,?,?,?,?)",
 				t.Username, t.Password, t.FirstName, t.LastName, t.MobileNo, t.EmailAddress)
 			if err != nil {
-				panic(err.Error())
+				w.WriteHeader(http.StatusConflict)
+				fmt.Fprintf(w, "Error - Information entered may be in the wrong format.")
+			} else {
+				w.WriteHeader(http.StatusAccepted)
+				fmt.Fprintf(w, "Account with username %s created!", t.Username)
 			}
-			fmt.Fprintf(w, "Account with username %s created!", t.Username)
 		}
 	}
 
@@ -114,9 +118,11 @@ func createDriverUser(w http.ResponseWriter, r *http.Request) {
 			_, err := db.Exec("INSERT INTO Drivers (Username, Password, FirstName, LastName, MobileNo, EmailAddress, IdNo, CarLicenseNo) values (?,?,?,?,?,?,?,?)",
 				t.Username, t.Password, t.FirstName, t.LastName, t.MobileNo, t.EmailAddress, t.IdNo, t.CarLicenseNo)
 			if err != nil {
-				panic(err.Error())
+				w.WriteHeader(http.StatusConflict)
+				fmt.Fprintf(w, "Error - Information entered may be in the wrong format.")
+			} else {
+				fmt.Fprintf(w, "Account with username %s created!", t.Username)
 			}
-			fmt.Fprintf(w, "Account with username %s created!", t.Username)
 		}
 	}
 
@@ -214,11 +220,77 @@ func dlogin(w http.ResponseWriter, r *http.Request) {
 		var d Driver
 		db.QueryRow("select * from Drivers where Username=? and Password=?", userValues["Username"], userValues["Password"]).Scan(&d.UserID,
 			&d.Username, &d.Password, &d.FirstName, &d.LastName, &d.MobileNo, &d.EmailAddress, &d.IdNo, &d.CarLicenseNo)
-		db.Exec("INSERT INTO LiveRides (driverUID, status) values (?,?)",
-			d.UserID, "Available")
+
+		client := &http.Client{}
+		url := "http://localhost:6002/api/drive/driver/setstatus?userid=" + strconv.Itoa(d.UserID)
+		if req, err := http.NewRequest("POST", url, nil); err == nil {
+			if res, err := client.Do(req); err == nil {
+				defer res.Body.Close()
+				if res.StatusCode == 202 {
+					body, _ := ioutil.ReadAll(res.Body)
+					fmt.Println(string(body))
+				}
+			}
+		}
 
 		res, _ := json.MarshalIndent(d, "", "\t")
 		fmt.Fprintf(w, string(res))
+	}
+}
+
+func getPDetails(w http.ResponseWriter, r *http.Request) {
+	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+
+	querystringmap := r.URL.Query()
+	if len(querystringmap) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "Error - No user ID input.")
+	} else {
+		userID := r.URL.Query().Get("userid")
+		var p Passenger
+
+		err = db.QueryRow("Select * from Passengers where UserID=?", userID).Scan(&p.UserID, &p.Username, &p.Password, &p.FirstName, &p.LastName, &p.MobileNo, &p.EmailAddress)
+		if err != nil {
+			w.WriteHeader(http.StatusConflict)
+			fmt.Fprintf(w, "Error - Unable to retrieve information.")
+			panic(err.Error())
+		} else {
+			w.WriteHeader(http.StatusOK)
+			res, _ := json.MarshalIndent(p, "", "\t")
+			fmt.Fprintf(w, string(res))
+		}
+	}
+}
+
+func getDDetails(w http.ResponseWriter, r *http.Request) {
+	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+
+	querystringmap := r.URL.Query()
+	if len(querystringmap) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "Error - No user ID input.")
+	} else {
+		userID := r.URL.Query().Get("userid")
+		var d Driver
+
+		err = db.QueryRow("Select * from Drivers where UserID=?", userID).Scan(&d.UserID, &d.Username, &d.Password, &d.FirstName, &d.LastName, &d.MobileNo, &d.EmailAddress, &d.IdNo, &d.CarLicenseNo)
+		if err != nil {
+			w.WriteHeader(http.StatusConflict)
+			fmt.Fprintf(w, "Error - Unable to retrieve information.")
+			panic(err.Error())
+		} else {
+			w.WriteHeader(http.StatusOK)
+			res, _ := json.MarshalIndent(d, "", "\t")
+			fmt.Fprintf(w, string(res))
+		}
 	}
 }
 
