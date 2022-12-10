@@ -58,6 +58,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":5000", router))
 }
 
+// Create a record in the table Passengers
 func createPassengerUser(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 	defer db.Close()
@@ -65,7 +66,7 @@ func createPassengerUser(w http.ResponseWriter, r *http.Request) {
 		panic(err.Error())
 	}
 
-	w.Header().Set("Content-type", "application/json")
+	w.Header().Set("Content-type", "text/plain")
 	d := json.NewDecoder(r.Body)
 	var t Passenger
 
@@ -94,6 +95,7 @@ func createPassengerUser(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// Create a driver user
 func createDriverUser(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 	defer db.Close()
@@ -101,7 +103,7 @@ func createDriverUser(w http.ResponseWriter, r *http.Request) {
 		panic(err.Error())
 	}
 
-	w.Header().Set("Content-type", "application/json")
+	w.Header().Set("Content-type", "text/plain")
 	d := json.NewDecoder(r.Body)
 	var t Driver
 	err2 := d.Decode(&t)
@@ -128,13 +130,15 @@ func createDriverUser(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// Check if username is not already taken. Take into consideration if the user checking is checking his own username,
+// where in that case, username is displayed as not taken.
 func checkUsername(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 	if err != nil {
 		panic(err.Error())
 	}
 	defer db.Close()
-
+	w.Header().Set("Content-type", "text/plain")
 	querystringmap := r.URL.Query()
 	if len(querystringmap) == 0 {
 		w.WriteHeader(http.StatusNotFound)
@@ -185,9 +189,11 @@ func plogin(w http.ResponseWriter, r *http.Request) {
 	var count int
 	db.QueryRow("Select count(*) from Passengers where Username=? and Password=?", userValues["Username"], userValues["Password"]).Scan(&count)
 	if count != 1 {
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "No user found or wrong password.")
 	} else {
+		w.Header().Set("Content-type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
 		var p Passenger
 		db.QueryRow("select * from Passengers where Username=? and Password=?", userValues["Username"], userValues["Password"]).Scan(&p.UserID,
@@ -213,9 +219,11 @@ func dlogin(w http.ResponseWriter, r *http.Request) {
 	var count int
 	db.QueryRow("Select count(*) from Drivers where Username=? and Password=?", userValues["Username"], userValues["Password"]).Scan(&count)
 	if count != 1 {
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "No user found or wrong password.")
 	} else {
+		w.Header().Set("Content-type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
 		var d Driver
 		db.QueryRow("select * from Drivers where Username=? and Password=?", userValues["Username"], userValues["Password"]).Scan(&d.UserID,
@@ -238,6 +246,7 @@ func dlogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Get all passenger details
 func getPDetails(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 	if err != nil {
@@ -247,6 +256,7 @@ func getPDetails(w http.ResponseWriter, r *http.Request) {
 
 	querystringmap := r.URL.Query()
 	if len(querystringmap) == 0 {
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Error - No user ID input.")
 	} else {
@@ -255,10 +265,12 @@ func getPDetails(w http.ResponseWriter, r *http.Request) {
 
 		err = db.QueryRow("Select * from Passengers where UserID=?", userID).Scan(&p.UserID, &p.Username, &p.Password, &p.FirstName, &p.LastName, &p.MobileNo, &p.EmailAddress)
 		if err != nil {
+			w.Header().Set("Content-type", "text/plain")
 			w.WriteHeader(http.StatusConflict)
 			fmt.Fprintf(w, "Error - Unable to retrieve information.")
 			panic(err.Error())
 		} else {
+			w.Header().Set("Content-type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			res, _ := json.MarshalIndent(p, "", "\t")
 			fmt.Fprintf(w, string(res))
@@ -266,6 +278,7 @@ func getPDetails(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Get all driver details
 func getDDetails(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 	if err != nil {
@@ -275,6 +288,7 @@ func getDDetails(w http.ResponseWriter, r *http.Request) {
 
 	querystringmap := r.URL.Query()
 	if len(querystringmap) == 0 {
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Error - No user ID input.")
 	} else {
@@ -283,10 +297,12 @@ func getDDetails(w http.ResponseWriter, r *http.Request) {
 
 		err = db.QueryRow("Select * from Drivers where UserID=?", userID).Scan(&d.UserID, &d.Username, &d.Password, &d.FirstName, &d.LastName, &d.MobileNo, &d.EmailAddress, &d.IdNo, &d.CarLicenseNo)
 		if err != nil {
+			w.Header().Set("Content-type", "text/plain")
 			w.WriteHeader(http.StatusConflict)
 			fmt.Fprintf(w, "Error - Unable to retrieve information.")
 			panic(err.Error())
 		} else {
+			w.Header().Set("Content-type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			res, _ := json.MarshalIndent(d, "", "\t")
 			fmt.Fprintf(w, string(res))
@@ -294,6 +310,7 @@ func getDDetails(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Edit passenger details
 func pEdit(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 	defer db.Close()
@@ -315,6 +332,7 @@ func pEdit(w http.ResponseWriter, r *http.Request) {
 		var count int
 		db.QueryRow("Select count(*) from Passengers where Username=? and UserID!=?", t.Username, t.UserID).Scan(&count)
 		if count != 0 {
+			w.Header().Set("Content-type", "application/json")
 			w.WriteHeader(http.StatusConflict)
 			var prevUN string
 			var prevPW string
@@ -325,6 +343,7 @@ func pEdit(w http.ResponseWriter, r *http.Request) {
 			res, _ := json.MarshalIndent(unpwPayload, "", "\t")
 			fmt.Fprintf(w, string(res))
 		} else {
+			w.Header().Set("Content-type", "text/plain")
 			w.WriteHeader(http.StatusAccepted)
 			_, err := db.Exec("UPDATE Passengers SET Username=?, Password=?, FirstName=?, LastName=?, MobileNo=?, EmailAddress=? WHERE UserID=?",
 				t.Username, t.Password, t.FirstName, t.LastName, t.MobileNo, t.EmailAddress, t.UserID)
@@ -337,6 +356,7 @@ func pEdit(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Edit driver details
 func dEdit(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
 	defer db.Close()
@@ -344,7 +364,6 @@ func dEdit(w http.ResponseWriter, r *http.Request) {
 		panic(err.Error())
 	}
 
-	w.Header().Set("Content-type", "application/json")
 	d := json.NewDecoder(r.Body)
 	params := mux.Vars(r)
 
@@ -359,6 +378,7 @@ func dEdit(w http.ResponseWriter, r *http.Request) {
 		var count int
 		db.QueryRow("Select count(*) from Drivers where Username=? and UserID!=?", t.Username, t.UserID).Scan(&count)
 		if count != 0 {
+			w.Header().Set("Content-type", "application/json")
 			w.WriteHeader(http.StatusConflict)
 			var prevUN string
 			var prevPW string
@@ -369,6 +389,7 @@ func dEdit(w http.ResponseWriter, r *http.Request) {
 			res, _ := json.MarshalIndent(unpwPayload, "", "\t")
 			fmt.Fprintf(w, string(res))
 		} else {
+			w.Header().Set("Content-type", "text/plain")
 			w.WriteHeader(http.StatusAccepted)
 			_, err := db.Exec("UPDATE Drivers SET Username=?, Password=?, FirstName=?, LastName=?, MobileNo=?, EmailAddress=?, IdNo=?, CarLicenseNo=? WHERE UserID=?",
 				t.Username, t.Password, t.FirstName, t.LastName, t.MobileNo, t.EmailAddress, t.IdNo, t.CarLicenseNo, t.UserID)
