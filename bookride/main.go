@@ -57,9 +57,11 @@ func main() {
 	log.Fatal(http.ListenAndServe(":6002", router))
 }
 
+// Check if the passenger is currently assigned or riding already - which will return a 1. Otherwise, return 0.
 func checkActiveRide(w http.ResponseWriter, r *http.Request) {
 	querystringmap := r.URL.Query()
 	if len(querystringmap) == 0 {
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Error - No UserID input.")
 	} else {
@@ -71,13 +73,17 @@ func checkActiveRide(w http.ResponseWriter, r *http.Request) {
 		defer db.Close()
 		var count int
 		db.QueryRow("Select count(*) from LiveRides where passengerUID=?", userID).Scan(&count)
+		w.Header().Set("Content-type", "text/plain")
+		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, count)
 	}
 }
 
+// Get driver's status in the LiveRides table.
 func getDriverStatus(w http.ResponseWriter, r *http.Request) {
 	querystringmap := r.URL.Query()
 	if len(querystringmap) == 0 {
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Error - No UserID input.")
 	} else {
@@ -89,14 +95,17 @@ func getDriverStatus(w http.ResponseWriter, r *http.Request) {
 		defer db.Close()
 		var status string
 		db.QueryRow("Select status from LiveRides where driverUID=?", driverUID).Scan(&status)
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusAccepted)
 		fmt.Fprint(w, status)
 	}
 }
 
+// Get ride details for driver's print status
 func getRideDetails(w http.ResponseWriter, r *http.Request) {
 	querystringmap := r.URL.Query()
 	if len(querystringmap) == 0 {
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Error - No UserID input.")
 	} else {
@@ -140,14 +149,17 @@ func getRideDetails(w http.ResponseWriter, r *http.Request) {
 			"pcDropOff":  pcDropOff,
 		}
 		res, _ := json.MarshalIndent(ridePayload, "", "\t")
+		w.Header().Set("Content-type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
 		fmt.Fprintf(w, string(res))
 	}
 }
 
+// Set driver status, used when signing in or logging out
 func setStatus(w http.ResponseWriter, r *http.Request) {
 	querystringmap := r.URL.Query()
 	if len(querystringmap) == 0 {
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Error - No UserID input.")
 	} else {
@@ -161,16 +173,19 @@ func setStatus(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
 			db.Exec("INSERT INTO LiveRides (driverUID, status) values (?,?)",
 				driverUID, "Available")
+			w.Header().Set("Content-type", "text/plain")
 			w.WriteHeader(http.StatusAccepted)
 			fmt.Fprint(w, "Record added successfully.")
 		} else if r.Method == "DELETE" {
 			db.Exec("DELETE FROM LiveRides where driverUID=?", driverUID)
+			w.Header().Set("Content-type", "text/plain")
 			w.WriteHeader(http.StatusAccepted)
 			fmt.Fprint(w, "Successfully logged out!")
 		}
 	}
 }
 
+// Assign a driver to a passenger
 func assignDriver(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	userID, _ := strconv.Atoi(params["user id"])
@@ -216,18 +231,22 @@ func assignDriver(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusAccepted)
 		fmt.Fprintln(w, "=======================\nRider found!")
 		fmt.Fprintln(w, "Name: "+d.FirstName+" "+d.LastName)
 		fmt.Fprintln(w, "Car license number: "+d.CarLicenseNo)
 	} else {
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintln(w, "Error - No riders available...")
 	}
 
 }
 
+// Called when a ride has been assigned. How this works is that a seperate server is started, that listens for the
+// driver's API calls. The calls include starting the ride, cancelling the ride and ending the ride. Cancelling or ending the
+// ride will delete the passenger from the LiveRide record, therefore returning a 0 on the checkactiveride call.
 func rideFunctions(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveFunctionDB")
 	if err != nil {
@@ -240,11 +259,12 @@ func rideFunctions(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	router := mux.NewRouter()
+	// This is called by the driver. The print messages are seen by the passenger.
 	router.Handle("/api/drive/startride/{user id}", isAuthorized(func(h http.ResponseWriter, z *http.Request) {
 
 		params := mux.Vars(z)
 		dUID, _ := strconv.Atoi(params["user id"])
-
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusCreated)
 		fmt.Fprintln(w, "=======================\nRide started!")
 		fmt.Fprintln(w, "   -           __")
@@ -258,9 +278,11 @@ func rideFunctions(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			panic(err.Error())
 		}
+		h.WriteHeader(http.StatusAccepted)
 		cancel()
 	})).Methods("POST")
 
+	// This is called by the driver. The print messages are seen by the passenger.
 	router.Handle("/api/drive/endride/{user id}", isAuthorized(func(h http.ResponseWriter, z *http.Request) {
 		params := mux.Vars(z)
 		dUID, _ := strconv.Atoi(params["user id"])
@@ -278,19 +300,24 @@ func rideFunctions(w http.ResponseWriter, r *http.Request) {
 			"pcDropOff":    pcDropOff,
 		}
 		res, _ := json.MarshalIndent(histPayload, "", "\t")
+		h.Header().Set("Content-type", "application/json")
 		h.WriteHeader(http.StatusAccepted)
 		fmt.Fprintf(h, string(res))
+
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusAccepted)
 		fmt.Fprintf(w, "Ride ended!\n=======================")
 
 		cancel()
 	})).Methods("POST")
-
+	// This is called by the driver. The print messages are seen by the passenger.
 	router.Handle("/api/drive/cancelride/{user id}", isAuthorized(func(h http.ResponseWriter, z *http.Request) {
 		params := mux.Vars(z)
 		dUID, _ := strconv.Atoi(params["user id"])
 		db.Exec("UPDATE LiveRides SET passengerUID=?,pcPickUp=?,pcDropOff=?, status=? where driverUID=?",
 			nil, nil, nil, "Available", dUID)
+
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "Driver cancelled the ride.\n=======================")
 		cancel()

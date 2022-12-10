@@ -41,6 +41,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":6005", router))
 }
 
+// This function adds a record to the RideHistory table. This function is called after a ride has ended.
 func setHistory(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveDataDB")
 	if err != nil {
@@ -55,10 +56,14 @@ func setHistory(w http.ResponseWriter, r *http.Request) {
 		ridePayload["driverUID"], ridePayload["passengerUID"], ridePayload["pcPickup"], ridePayload["pcDropOff"])
 	if err2 != nil {
 		w.WriteHeader(http.StatusConflict)
+	} else {
+		w.WriteHeader(http.StatusOK)
 	}
 
 }
 
+// This function gets all the record under a single passenger's ID. This function is called through their menu, and returns
+// the trips in reverse chronological order in a map.
 func getHistory(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveDataDB")
 	if err != nil {
@@ -120,9 +125,11 @@ func getHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(allRides) < 1 {
+		w.Header().Set("Content-type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "No ride history found...")
 	} else {
+		w.Header().Set("Content-type", "application/json")
 		res, _ := json.MarshalIndent(allRides, "", "\t")
 		w.WriteHeader(http.StatusAccepted)
 		fmt.Fprintf(w, string(res))
