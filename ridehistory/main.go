@@ -21,6 +21,18 @@ type Key struct {
 	Value   string   `xml:"value"`
 }
 
+type Driver struct {
+	UserID       int    `json:"User ID"`
+	Username     string `json:"Username"`
+	Password     string `json:"Password"`
+	FirstName    string `json:"First Name"`
+	LastName     string `json:"Last Name"`
+	MobileNo     string `json:"Mobile Number"`
+	EmailAddress string `json:"Email Address"`
+	IdNo         string `json:"Identification Number"`
+	CarLicenseNo string `json:"Car License Number"`
+}
+
 func main() {
 	router := mux.NewRouter()
 	router.Handle("/api/drive/addtohistory", isAuthorized(setHistory)).Methods("POST")
@@ -30,7 +42,7 @@ func main() {
 }
 
 func setHistory(w http.ResponseWriter, r *http.Request) {
-	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveDataDB")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -48,7 +60,7 @@ func setHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHistory(w http.ResponseWriter, r *http.Request) {
-	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveDataDB")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -66,23 +78,38 @@ func getHistory(w http.ResponseWriter, r *http.Request) {
 	for results.Next() {
 		var passengerUID string
 		var driverUID int
-		var dFirstName string
-		var dLastName string
-		var CarLicenseNo string
 		var pcPickUp string
 		var pcDropOff string
 		var rideDate string
+		var d Driver
 		err = results.Scan(&passengerUID, &driverUID, &pcPickUp, &pcDropOff, &rideDate)
 		if err != nil {
 			panic(err.Error())
 		}
 
-		db.QueryRow("Select FirstName, LastName, CarLicenseNo from Drivers where UserID=?", driverUID).Scan(&dFirstName, &dLastName, &CarLicenseNo)
+		client := &http.Client{}
+		url := "http://localhost:5000/api/drive/get/driver?userid=" + strconv.Itoa(driverUID)
+		if req, err := http.NewRequest("GET", url, nil); err == nil {
+			req.Header.Set("Token", r.Header["Token"][0])
+			if res, err := client.Do(req); err == nil {
+				defer res.Body.Close()
+				if res.StatusCode == 404 || res.StatusCode == 409 {
+					body, _ := ioutil.ReadAll(res.Body)
+					fmt.Println(string(body))
+				} else {
+					body, _ := ioutil.ReadAll(res.Body)
+					err := json.Unmarshal(body, &d)
+					if err != nil {
+						panic(err.Error())
+					}
+				}
+			}
+		}
 
 		rideObj := map[string]string{
-			"driverFirstName": dFirstName,
-			"driverLastName":  dLastName,
-			"carLicenseNo":    CarLicenseNo,
+			"driverFirstName": d.FirstName,
+			"driverLastName":  d.LastName,
+			"carLicenseNo":    d.CarLicenseNo,
 			"pcPickup":        pcPickUp,
 			"pcDropOff":       pcDropOff,
 			"rideDate":        rideDate,
