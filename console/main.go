@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-
-	_ "github.com/go-sql-driver/mysql"
 )
 
 type Driver struct {
@@ -232,7 +230,7 @@ func main() {
 						fmt.Scanln(&FirstName)
 						fmt.Print("Enter your last name: ")
 						fmt.Scanln(&LastName)
-						fmt.Print("Enter your mobile no: ")
+						fmt.Print("Enter your mobile no (8 characters): ")
 						fmt.Scanln(&MobileNo)
 						fmt.Print("Enter your email address: ")
 						fmt.Scanln(&EmailAddress)
@@ -249,8 +247,9 @@ func main() {
 									fmt.Printf("Account %s created successfully!\n", newAccount.Username)
 									break psgloop
 
-								} else {
-									fmt.Println("Error in account creation...")
+								} else if res.StatusCode == 409 {
+									body, _ := ioutil.ReadAll(res.Body)
+									fmt.Println(string(body))
 									break psgloop
 								}
 							}
@@ -285,7 +284,7 @@ func main() {
 						fmt.Scanln(&FirstName)
 						fmt.Print("Enter your last name: ")
 						fmt.Scanln(&LastName)
-						fmt.Print("Enter your mobile no: ")
+						fmt.Print("Enter your mobile no (8 characters): ")
 						fmt.Scanln(&MobileNo)
 						fmt.Print("Enter your email address: ")
 						fmt.Scanln(&EmailAddress)
@@ -305,8 +304,9 @@ func main() {
 								if res.StatusCode == 202 {
 									fmt.Printf("Account %s created successfully!\n", newAccount.Username)
 									break drvloop
-								} else {
-									fmt.Printf("Error in account creation...")
+								} else if res.StatusCode == 409 {
+									body, _ := ioutil.ReadAll(res.Body)
+									fmt.Println(string(body))
 									break drvloop
 								}
 							}
@@ -562,7 +562,7 @@ drvloop:
 		}
 		fmt.Println("Status: " + status)
 
-		currState := printDriverStatus(status, curd)
+		currState := printDriverStatus(status, curd, *currentToken)
 
 		fmt.Println("=======================")
 		fmt.Println("\n1. Edit account information")
@@ -734,8 +734,8 @@ drvloop:
 					}
 				}
 			}
-			url = "http://localhost:6002/api/drive/driver/setinactive?userid=" + strconv.Itoa(curd.UserID)
-			if req, err := http.NewRequest("POST", url, nil); err == nil {
+			url = "http://localhost:6002/api/drive/driver/setstatus?userid=" + strconv.Itoa(curd.UserID)
+			if req, err := http.NewRequest("DELETE", url, nil); err == nil {
 				req.Header.Set("Token", *currentToken)
 				if res, err := client.Do(req); err == nil {
 					defer res.Body.Close()
@@ -809,7 +809,7 @@ func editDrv(drv *Driver, currentToken string) {
 	}
 }
 
-func printDriverStatus(status string, curd *Driver) (currState int) {
+func printDriverStatus(status string, curd *Driver, currentToken string) (currState int) {
 
 	switch status {
 	case "Assigned":
@@ -818,6 +818,7 @@ func printDriverStatus(status string, curd *Driver) (currState int) {
 		client := &http.Client{}
 		url := "http://localhost:6002/api/drive/getridedetails?userid=" + strconv.Itoa(curd.UserID)
 		if req, err := http.NewRequest("GET", url, nil); err == nil {
+			req.Header.Set("Token", currentToken)
 			if res, err := client.Do(req); err == nil {
 				defer res.Body.Close()
 				if res.StatusCode == 202 {
@@ -849,6 +850,7 @@ func printDriverStatus(status string, curd *Driver) (currState int) {
 		client := &http.Client{}
 		url := "http://localhost:6002/api/drive/getridedetails?userid=" + strconv.Itoa(curd.UserID)
 		if req, err := http.NewRequest("GET", url, nil); err == nil {
+			req.Header.Set("Token", currentToken)
 			if res, err := client.Do(req); err == nil {
 				defer res.Body.Close()
 				if res.StatusCode == 202 {

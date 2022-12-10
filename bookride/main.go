@@ -32,15 +32,27 @@ type Passenger struct {
 	EmailAddress string `json:"Email Address"`
 }
 
+type Driver struct {
+	UserID       int    `json:"User ID"`
+	Username     string `json:"Username"`
+	Password     string `json:"Password"`
+	FirstName    string `json:"First Name"`
+	LastName     string `json:"Last Name"`
+	MobileNo     string `json:"Mobile Number"`
+	EmailAddress string `json:"Email Address"`
+	IdNo         string `json:"Identification Number"`
+	CarLicenseNo string `json:"Car License Number"`
+}
+
 func main() {
 	router := mux.NewRouter()
 	router.HandleFunc("/api/drive/checkactiveride", checkActiveRide).Methods("GET")
 	router.HandleFunc("/api/drive/getdriverstatus", getDriverStatus).Methods("GET")
-	router.HandleFunc("/api/drive/getridedetails", getRideDetails).Methods("GET")
-	router.Handle("/api/drive/driver/setinactive", isAuthorized(setInactive)).Methods("POST")
+	router.Handle("/api/drive/getridedetails", isAuthorized(getRideDetails)).Methods("GET")
+	router.HandleFunc("/api/drive/driver/setstatus", setStatus).Methods("POST")
+	router.Handle("/api/drive/driver/setstatus", isAuthorized(setStatus)).Methods("DELETE")
 	router.Handle("/api/drive/passenger/assigndriver/{user id}", isAuthorized(assignDriver)).Methods("POST")
 	router.Handle("/api/drive/driver/ridefunctions/{user id}", isAuthorized(rideFunctions)).Methods("POST")
-
 	fmt.Println("Listening at port 6002")
 	log.Fatal(http.ListenAndServe(":6002", router))
 }
@@ -52,7 +64,7 @@ func checkActiveRide(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Error - No UserID input.")
 	} else {
 		userID := r.URL.Query().Get("userid")
-		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveFunctionDB")
 		if err != nil {
 			panic(err.Error())
 		}
@@ -69,14 +81,14 @@ func getDriverStatus(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Error - No UserID input.")
 	} else {
-		userID := r.URL.Query().Get("userid")
-		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+		driverUID := r.URL.Query().Get("userid")
+		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveFunctionDB")
 		if err != nil {
 			panic(err.Error())
 		}
 		defer db.Close()
 		var status string
-		db.QueryRow("Select status from LiveRides where driverUID=?", userID).Scan(&status)
+		db.QueryRow("Select status from LiveRides where driverUID=?", driverUID).Scan(&status)
 		w.WriteHeader(http.StatusAccepted)
 		fmt.Fprint(w, status)
 	}
@@ -88,8 +100,8 @@ func getRideDetails(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Error - No UserID input.")
 	} else {
-		userID := r.URL.Query().Get("userid")
-		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+		driverUID := r.URL.Query().Get("userid")
+		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveFunctionDB")
 		if err != nil {
 			panic(err.Error())
 		}
@@ -97,12 +109,32 @@ func getRideDetails(w http.ResponseWriter, r *http.Request) {
 		var passengerUID string
 		var pcPickUp string
 		var pcDropOff string
-		var pFName string
-		var pLName string
-		db.QueryRow("Select p.FirstName, p.LastName, l.passengerUID, l.pcPickUp, l.pcDropOff from LiveRides l INNER JOIN Passengers p ON l.passengerUID=p.UserID where l.driverUID=?", userID).Scan(&pFName, &pLName, &passengerUID, &pcPickUp, &pcDropOff)
+		var p Passenger
+
+		db.QueryRow("Select l.passengerUID, l.pcPickUp, l.pcDropOff from LiveRides l where l.driverUID=?", driverUID).Scan(&passengerUID, &pcPickUp, &pcDropOff)
+
+		client := &http.Client{}
+		url := "http://localhost:5000/api/drive/get/passenger?userid=" + passengerUID
+		if req, err := http.NewRequest("GET", url, nil); err == nil {
+			req.Header.Set("Token", r.Header["Token"][0])
+			if res, err := client.Do(req); err == nil {
+				defer res.Body.Close()
+				if res.StatusCode == 404 || res.StatusCode == 409 {
+					body, _ := ioutil.ReadAll(res.Body)
+					fmt.Println(string(body))
+				} else {
+					body, _ := ioutil.ReadAll(res.Body)
+					err := json.Unmarshal(body, &p)
+					if err != nil {
+						panic(err.Error())
+					}
+				}
+			}
+		}
+
 		ridePayload := map[string]string{
-			"pFirstName": pFName,
-			"pLastName":  pLName,
+			"pFirstName": p.FirstName,
+			"pLastName":  p.LastName,
 			"pUID":       passengerUID,
 			"pcPickUp":   pcPickUp,
 			"pcDropOff":  pcDropOff,
@@ -113,21 +145,29 @@ func getRideDetails(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func setInactive(w http.ResponseWriter, r *http.Request) {
+func setStatus(w http.ResponseWriter, r *http.Request) {
 	querystringmap := r.URL.Query()
 	if len(querystringmap) == 0 {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Error - No UserID input.")
 	} else {
-		userID := r.URL.Query().Get("userid")
-		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+		driverUID := r.URL.Query().Get("userid")
+		db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveFunctionDB")
 		if err != nil {
 			panic(err.Error())
 		}
 		defer db.Close()
-		db.Exec("DELETE FROM LiveRides where driverUID=?", userID)
-		w.WriteHeader(http.StatusAccepted)
-		fmt.Fprint(w, "Successfully logged out!")
+
+		if r.Method == "POST" {
+			db.Exec("INSERT INTO LiveRides (driverUID, status) values (?,?)",
+				driverUID, "Available")
+			w.WriteHeader(http.StatusAccepted)
+			fmt.Fprint(w, "Record added successfully.")
+		} else if r.Method == "DELETE" {
+			db.Exec("DELETE FROM LiveRides where driverUID=?", driverUID)
+			w.WriteHeader(http.StatusAccepted)
+			fmt.Fprint(w, "Successfully logged out!")
+		}
 	}
 }
 
@@ -139,7 +179,7 @@ func assignDriver(w http.ResponseWriter, r *http.Request) {
 	d := json.NewDecoder(r.Body)
 	d.Decode(&pcValues)
 
-	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveFunctionDB")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -154,14 +194,33 @@ func assignDriver(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			panic(err.Error())
 		}
-		var dFirstName string
-		var dLastName string
-		var dCarLicenseNo string
-		db.QueryRow("Select d.FirstName, d.LastName, d.CarLicenseNo from Drivers d INNER JOIN LiveRides l ON d.UserID = l.driverUID where l.passengerUID=?", userID).Scan(&dFirstName, &dLastName, &dCarLicenseNo)
+		var driverUID string
+		db.QueryRow("Select driverUID from LiveRides where passengerUID=?", userID).Scan(&driverUID)
+		var d Driver
+
+		client := &http.Client{}
+		url := "http://localhost:5000/api/drive/get/driver?userid=" + driverUID
+		if req, err := http.NewRequest("GET", url, nil); err == nil {
+			req.Header.Set("Token", r.Header["Token"][0])
+			if res, err := client.Do(req); err == nil {
+				defer res.Body.Close()
+				if res.StatusCode == 404 || res.StatusCode == 409 {
+					body, _ := ioutil.ReadAll(res.Body)
+					fmt.Println(string(body))
+				} else {
+					body, _ := ioutil.ReadAll(res.Body)
+					err := json.Unmarshal(body, &d)
+					if err != nil {
+						panic(err.Error())
+					}
+				}
+			}
+		}
+
 		w.WriteHeader(http.StatusAccepted)
 		fmt.Fprintln(w, "=======================\nRider found!")
-		fmt.Fprintln(w, "Name: "+dFirstName+" "+dLastName)
-		fmt.Fprintln(w, "Car license number: "+dCarLicenseNo)
+		fmt.Fprintln(w, "Name: "+d.FirstName+" "+d.LastName)
+		fmt.Fprintln(w, "Car license number: "+d.CarLicenseNo)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintln(w, "Error - No riders available...")
@@ -170,7 +229,7 @@ func assignDriver(w http.ResponseWriter, r *http.Request) {
 }
 
 func rideFunctions(w http.ResponseWriter, r *http.Request) {
-	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveUserDB")
+	db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/DriveFunctionDB")
 	if err != nil {
 		panic(err.Error())
 	}
