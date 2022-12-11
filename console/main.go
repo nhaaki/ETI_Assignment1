@@ -813,7 +813,7 @@ func editPsg(psg *Passenger, currentToken string) {
 
 // Function used to edit driver details.
 func editDrv(drv *Driver, currentToken string) {
-	url := "http://localhost:6001/api/drive/edit/driver/" + strconv.Itoa(drv.UserID)
+	url := "http://localhost:5000/api/drive/edit/driver/" + strconv.Itoa(drv.UserID)
 	postBody, _ := json.Marshal(*drv)
 	resBody := bytes.NewBuffer(postBody)
 	client := &http.Client{}
