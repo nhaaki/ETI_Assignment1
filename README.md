@@ -28,7 +28,7 @@ This repository constitutes a ride-sharing platform named _**'DRIVE'**_ that mak
  ## **Instructions to set up and run these microservices**
  
 1. Clone this repository in Visual Studio Code.
-2. Run the MySQL script using a MySQL connection with the IP (127.0.0.01:3306). This should create three databases with their own respective tables.
+2. Run the MySQL script using a MySQL connection with the IP (127.0.0.01:3306). The MySQL script will create the user **`user`** with the password of **`password`**. Followed by creating three databases with their own respective tables.
 2. Open 6 terminals, 2 for each user account (Passenger and Driver) and 1 for every other microservice.
 3. Follow the code for each terminal.
     * Terminal 1
